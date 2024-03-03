@@ -4,7 +4,8 @@
 import numpy as np
 from scipy.interpolate import CubicSpline
 import rospy
-from std_msgs.msg import Float32MultiArray,MultiArrayDimension
+from std_msgs.msg import Float32MultiArray, MultiArrayDimension
+
 # Simple straight path
 def path_generator_straight(path_length, step_size, position_current):
     path_x = np.arange(position_current[0], position_current[0] + path_length + step_size, step_size)
@@ -70,7 +71,7 @@ def path_generator_infinity(path_radius, step_size, position_current):
     path_x += position_current[0]
     path_y += position_current[1]
 
-    return path_x, path_y
+    return path_y, -path_x
 
 
 # Euclidean distance 
@@ -109,7 +110,7 @@ def generate_path(path_type, *args):
     
     elif path_type == 'circular':
         path_length, path_radius, step_size, position_current, rotate_ccw = args
-        return path_generator_circular(path_length, path_radius, step_size, position_current, rotate_ccw)
+        return path_generator_circular(path_length, path_radius, step_size, position_current, rotate_ccw=rotate_ccw)
     
     elif path_type == 'lane_change':
         path_length_straight, path_length_curve_x, step_size, lane_width, position_current, turn_left = args
@@ -123,62 +124,91 @@ def generate_path(path_type, *args):
         raise ValueError("Invalid path type. Choose from 'straight', 'circular', 'lane_change', 'infinity'.")
 
 def path_data(path_type, *args):
-    path = generate_path(path_type,*args)
-    E = euclidean_distance(path[0],path[1])
-    X = CubicSpline(E,path[0],bc_type='natural')
-    Y = CubicSpline(E,path[1],bc_type='natural')
-    X_dot = X.derivative()
-    Y_dot = Y.derivative()
-    X_ddot = X_dot.derivative()
-    Y_ddot = Y_dot.derivative()
-    velocity = np.full([76],10.0)
-    curvature = (-X_ddot(E) * Y_dot(E) + X_dot(E) * Y_ddot(E))/ ((X_dot(E))**2 + (Y_dot(E))**2)**(3/2)
-    heading = np.arctan2(Y_dot(E),X_dot(E))
-    A = path[0],path[1],velocity,curvature,heading
-    O = np.array([A[0],A[1],A[2],A[3],A[4]], dtype=np.float32)
-    return O
+    # Generate path based on input parameters
+    path_x, path_y = generate_path(path_type,*args)
+
+    # Fit cubic splines to both x and y
+    accumulated_euclid_dist = euclidean_distance(path_x, path_y)
+    spline_x = CubicSpline(accumulated_euclid_dist, path_x, bc_type='natural')
+    spline_y = CubicSpline(accumulated_euclid_dist, path_y, bc_type='natural')
+
+    # Estimate path derivatives and curvature using the fit splines
+    x_dot = spline_x.derivative()
+    y_dot = spline_y.derivative()
+    x_ddot = x_dot.derivative()
+    y_ddot = y_dot.derivative()
+    curvature = (-x_ddot(accumulated_euclid_dist) * y_dot(accumulated_euclid_dist) + \
+                 x_dot(accumulated_euclid_dist) * y_ddot(accumulated_euclid_dist))/ \
+                ((x_dot(accumulated_euclid_dist))**2 + (y_dot(accumulated_euclid_dist))**2)**(1.5)
+    # heading = np.arctan2(y_dot(accumulated_euclid_dist), x_dot(accumulated_euclid_dist))
+
+    # Generate velocity profile
+    velocity_terminal = 2.0
+    velocity_step = 0.25
+    velocity_ramp = np.arange(0.0, velocity_terminal, velocity_step)
+    velocity = np.full_like(path_x, velocity_terminal)
+    velocity[:velocity_ramp.shape[0]] = velocity_ramp
+    velocity[-velocity_ramp.shape[0]:] = np.flip(velocity_ramp)
+
+    # Return concatenated trajectory
+    return np.concatenate((path_x, path_y, curvature, velocity))
 
 def main():
-    # Path data
-    path_length = path_length_straight = 75.0
-    path_radius = 6
-    path_length_curve_x = 500
-    step_size = 1.0
-    lane_width = 3.7
-    position_current = np.array([1.0, 3.0])
-
     # Paths (one is to be uncommented)
-    A = path_data('straight',path_length, step_size, position_current)
+    # path_length = 75.0
+    # step_size = 1.0
+    # position_current = np.array([0.0, 0.0])
+    # traj_concat = path_data('straight',path_length, step_size, position_current)
 
-    # A = path_data('circular',path_length, path_radius, step_size, position_current, False)
+    # path_length = 2 * np.pi
+    # path_radius = 6
+    # step_size = 0.5 * np.pi/180
+    # position_current = np.array([0.0, 0.0])
+    # traj_concat = path_data('circular', path_length, path_radius, step_size, position_current, True)
     
-    # A = path_data('lane_change',path_length_straight, path_length_curve_x, step_size, lane_width, position_current, True)
+    # path_length_straight = 10.0
+    # path_length_curve_x = 20.0
+    # step_size = 0.05
+    # lane_width = 3.7
+    # position_current = np.array([0.0, 0.0])
+    # traj_concat = path_data('lane_change', path_length_straight, path_length_curve_x, step_size, lane_width, position_current, True)
     
     path_radius = 7.0
-    # A = path_data('infinity',path_radius, step_size, position_current)
+    step_size = 0.25 * np.pi/180
+    position_current = np.array([0.0, 0.0])
+    traj_concat = path_data('infinity', path_radius, step_size, position_current)
     
     rospy.init_node('path_planner')
-    pub = rospy.Publisher('path_planner', Float32MultiArray, queue_size=10)
+    pub_traj = rospy.Publisher('/path_planner/trajectory', Float32MultiArray, queue_size=0, latch=True)
     rate = rospy.Rate(1)
+    initial_delay = 2
+    rospy.sleep(initial_delay)
+    has_published_traj = False
     while not rospy.is_shutdown():
-        msg = Float32MultiArray()
-        msg.data = (A.reshape([5*76]).tolist())
-        msg.layout.data_offset = 0 
 
-        # create two dimensions in the dim array
-        msg.layout.dim = [MultiArrayDimension(), MultiArrayDimension()]
+        if ((not has_published_traj) and (pub_traj.get_num_connections() > 0)):
+            msg = Float32MultiArray()
+            msg.data = traj_concat.tolist()
+            msg.layout.data_offset = 0 
 
-        # dim[0] is the vertical dimension of your matrix
-        msg.layout.dim[0].label = "variables(X,Y,Velocity,Curvature,Heading)"
-        msg.layout.dim[0].size = 5
-        msg.layout.dim[0].stride = 5*76
-        # dim[1] is the horizontal dimension of your matrix
-        msg.layout.dim[1].label = "samples"
-        msg.layout.dim[1].size = 76
-        msg.layout.dim[1].stride = 76
+            # create two dimensions in the dim array
+            msg.layout.dim = [MultiArrayDimension(), MultiArrayDimension()]
+
+            # dim[0] is the horizontal dimension of your matrix
+            msg.layout.dim[0].label = "samples"
+            msg.layout.dim[0].size = int(traj_concat.shape[0]/4)
+            msg.layout.dim[0].stride = traj_concat.shape[0]
+
+            # dim[1] is the vertical dimension of your matrix
+            msg.layout.dim[1].label = "variables(X,Y,Curvature,Velocity)"
+            msg.layout.dim[1].size = 4
+            msg.layout.dim[1].stride = 4
+            
+            pub_traj.publish(msg)
+            has_published_traj = True
         
-        pub.publish(msg)  
         rate.sleep()
+        
 
 if __name__ == '__main__':
     try:
