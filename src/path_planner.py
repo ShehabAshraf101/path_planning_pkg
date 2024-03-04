@@ -17,14 +17,14 @@ def path_generator_straight(path_length, step_size, position_current):
 # Circular Path
 def path_generator_circular(path_length, path_radius, step_size, position_current, rotate_ccw=True):
     theta_init = np.pi
-    center = np.array([position_current[0] - path_radius * np.cos(theta_init), position_current[1] - path_radius * np.sin(theta_init)])
+    center = np.array([position_current[0] - path_radius * np.sin(theta_init), position_current[1] - path_radius * np.cos(theta_init)])
     if (rotate_ccw):
         theta = np.arange(theta_init, theta_init + path_length + step_size, step_size)
     else:
         theta = np.arange(theta_init - path_length, theta_init + step_size, step_size)
         theta = np.flip(theta)
-    path_x = center[0] + path_radius * np.cos(theta)
-    path_y = center[1] + path_radius * np.sin(theta)
+    path_x = center[0] + path_radius * np.sin(theta)
+    path_y = -(center[1] + path_radius * np.cos(theta))
 
     return path_x, path_y
 
@@ -35,7 +35,7 @@ def path_generator_lane_change(path_length_straight, path_length_curve_x, step_s
     path_x_straight_1, path_y_straight_1 = path_generator_straight(path_length_straight, step_size, position_current)
 
     # Define the curved path
-    path_length_curve = 0.8 * np.sqrt((lane_width**2 + path_length_curve_x**2))
+    path_length_curve = 1.0 * np.sqrt((lane_width**2 + path_length_curve_x**2))
     coeff_x = np.array([0.0, path_length_curve_x/path_length_curve])
     coeff_y = np.array([0.0, 0.0, 3 * lane_width/path_length_curve**2, -2 * lane_width/path_length_curve**3])
     curve_s = np.arange(0.0, path_length_curve + step_size, step_size)
@@ -66,12 +66,19 @@ def path_generator_infinity(path_radius, step_size, position_current):
 
     # Generate the infinity sign (Lemniscate of Bernouli)
     t = np.arange(-np.pi/2, 1.5*np.pi + step_size, step_size)
-    path_x = (path_constant * np.cos(t))/(1 + np.sin(t)**2)
-    path_y = (path_constant * np.sin(t) * np.cos(t))/(1 + np.sin(t)**2)
-    path_x += position_current[0]
-    path_y += position_current[1]
+    path = np.array([(path_constant * np.sin(t) * np.cos(t))/(1 + np.sin(t)**2),
+                    -(path_constant * np.cos(t))/(1 + np.sin(t)**2)])
+    path[0, :] += position_current[0]
+    path[1, :] += position_current[1]
+    
+    # Rotate path to align with orientation of the vehicle
+    theta = np.arctan2(path[1, 1] - path[1, 0], path[0, 1] - path[0, 0])
+    rot_theta = np.array([[np.cos(theta), np.sin(theta)],
+                         [-np.sin(theta), np.cos(theta)]]
+                        )
+    path = np.matmul(rot_theta, path)
 
-    return path_y, -path_x
+    return path[0, :], path[1, :]
 
 
 # Euclidean distance 
@@ -143,12 +150,13 @@ def path_data(path_type, *args):
     # heading = np.arctan2(y_dot(accumulated_euclid_dist), x_dot(accumulated_euclid_dist))
 
     # Generate velocity profile
-    velocity_terminal = 2.0
-    velocity_step = 0.25
-    velocity_ramp = np.arange(0.0, velocity_terminal, velocity_step)
-    velocity = np.full_like(path_x, velocity_terminal)
-    velocity[:velocity_ramp.shape[0]] = velocity_ramp
-    velocity[-velocity_ramp.shape[0]:] = np.flip(velocity_ramp)
+    velocity_min = 2.0
+    velocity_max = 8.0
+    velocity = np.maximum(velocity_max - 10.0 * np.sqrt(np.abs(curvature)), velocity_min)
+    velocity_step = 0.5
+    velocity_ramp = np.arange(0.0, velocity_max, velocity_step)
+    velocity[:velocity_ramp.shape[0]] = np.minimum(velocity_ramp, velocity[:velocity_ramp.shape[0]])
+    velocity[-velocity_ramp.shape[0]:] = np.minimum(np.flip(velocity_ramp), velocity[-velocity_ramp.shape[0]:])
 
     # Return concatenated trajectory
     return np.concatenate((path_x, path_y, curvature, velocity))
@@ -156,7 +164,7 @@ def path_data(path_type, *args):
 def main():
     # Paths (one is to be uncommented)
     # path_length = 75.0
-    # step_size = 1.0
+    # step_size = 0.05
     # position_current = np.array([0.0, 0.0])
     # traj_concat = path_data('straight',path_length, step_size, position_current)
 
@@ -164,17 +172,17 @@ def main():
     # path_radius = 6
     # step_size = 0.5 * np.pi/180
     # position_current = np.array([0.0, 0.0])
-    # traj_concat = path_data('circular', path_length, path_radius, step_size, position_current, True)
+    # traj_concat = path_data('circular', path_length, path_radius, step_size, position_current, False)
     
-    # path_length_straight = 10.0
-    # path_length_curve_x = 20.0
+    # path_length_straight = 75.0
+    # path_length_curve_x = 30.0
     # step_size = 0.05
     # lane_width = 3.7
-    # position_current = np.array([0.0, 0.0])
+    # position_current = np.array([-90.0, 0.0])
     # traj_concat = path_data('lane_change', path_length_straight, path_length_curve_x, step_size, lane_width, position_current, True)
     
     path_radius = 7.0
-    step_size = 0.25 * np.pi/180
+    step_size = 0.5 * np.pi/180
     position_current = np.array([0.0, 0.0])
     traj_concat = path_data('infinity', path_radius, step_size, position_current)
     
