@@ -1,20 +1,30 @@
 #!/usr/bin/env python3
 
-# Libraries
+### Libraries ###
 import numpy as np
 from scipy.interpolate import CubicSpline
 import rospy
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 
-# Simple straight path
+### Loading Parameters from the ROSPARAM Server ###
+
+# Path Parameters
+
+# Velocity Profile Parameters
+velocity_max = rospy.get_param('/path_planner/velocity_max', default=8.0)
+acc_long_max = rospy.get_param('/path_planner/acc_long_max', default=2.0)
+acc_lat_max  = rospy.get_param('/path_planner/acc_lat_max', default=2.5)
+
+### Path Generation ### 
+
+# Straight Path 
 def path_generator_straight(path_length, step_size, position_current):
     path_x = np.arange(position_current[0], position_current[0] + path_length + step_size, step_size)
     path_y = position_current[1] * np.ones_like(path_x)
 
     return path_x, path_y
 
-
-# Circular Path
+# Ciruclar Path
 def path_generator_circular(path_length, path_radius, step_size, position_current, rotate_ccw=True):
     theta_init = np.pi
     center = np.array([position_current[0] - path_radius * np.sin(theta_init), position_current[1] - path_radius * np.cos(theta_init)])
@@ -27,7 +37,6 @@ def path_generator_circular(path_length, path_radius, step_size, position_curren
     path_y = -(center[1] + path_radius * np.cos(theta))
 
     return path_x, path_y
-
 
 # Straight Path with Lane Change
 def path_generator_lane_change(path_length_straight, path_length_curve_x, step_size, lane_width, position_current, turn_left=True):
@@ -58,7 +67,6 @@ def path_generator_lane_change(path_length_straight, path_length_curve_x, step_s
     # Return the concatenation of all 3 paths
     return np.concatenate((path_x_straight_1, path_x_curve, path_x_straight_2)), np.concatenate((path_y_straight_1, path_y_curve, path_y_straight_2))
 
-
 # Infinity Path
 def path_generator_infinity(path_radius, step_size, position_current):
     # Calculate the lemniscate constant a
@@ -80,27 +88,8 @@ def path_generator_infinity(path_radius, step_size, position_current):
 
     return path[0, :], path[1, :]
 
-
-# Euclidean distance 
-def euclidean_distance(x, y):
-    """
-    Calculate the accumulated Euclidean distances for each point in the arrays x and y.
-
-    Parameters:
-    - x: numpy array or list, x-coordinates of the points
-    - y: numpy array or list, y-coordinates of the points
-
-    Returns:
-    - accumulated_distances: numpy array containing the accumulated Euclidean distances
-    """
-    points = np.column_stack((x, y))
-    pairwise_distances = np.sqrt(np.sum(np.diff(points, axis=0)**2, axis=1))
-    accumulated_distances = np.cumsum(pairwise_distances)
-    return np.insert(accumulated_distances, 0, 0)  # Insert 0 at the beginning for the starting point
-
-
 # Path Selection
-def generate_path(path_type, *args):
+def path_generator(path_type, *args):
     """
     Generate a path based on the specified path type.
 
@@ -130,43 +119,113 @@ def generate_path(path_type, *args):
     else:
         raise ValueError("Invalid path type. Choose from 'straight', 'circular', 'lane_change', 'infinity'.")
 
-def path_data(path_type, *args):
-    # Generate path based on input parameters
-    path_x, path_y = generate_path(path_type,*args)
 
+### Heading and Curvature Estimation ### 
+
+# Calculate Accumulated Euclidean Distance
+def calc_euclidean_distance(path_x, path_y):
+    """
+    Calculate the accumulated Euclidean distances for each point in the arrays x and y.
+
+    Parameters:
+    - path_x: numpy array, x-coordinates of the points
+    - path_y: numpy array, y-coordinates of the points
+
+    Returns:
+    - pairwise_distances: numpy array containing the Euclidean distances between consecutive points
+    - accumulated_distances: numpy array containing the accumulated Euclidean distances
+    """
+    points = np.column_stack((path_x, path_y))
+    pairwise_distances = np.sqrt(np.sum(np.diff(points, axis=0)**2, axis=1))
+    accumulated_distances = np.cumsum(pairwise_distances)
+
+    # Insert 0 at the beginning for the starting point
+    return np.insert(pairwise_distances, 0, 0), np.insert(accumulated_distances, 0, 0)
+
+# Calculate Path Heading and Curvature
+def calc_heading_curvature(path_x, path_y, euclid_dist):
     # Fit cubic splines to both x and y
-    accumulated_euclid_dist = euclidean_distance(path_x, path_y)
-    spline_x = CubicSpline(accumulated_euclid_dist, path_x, bc_type='natural')
-    spline_y = CubicSpline(accumulated_euclid_dist, path_y, bc_type='natural')
+    spline_x = CubicSpline(euclid_dist, path_x, bc_type='natural')
+    spline_y = CubicSpline(euclid_dist, path_y, bc_type='natural')
 
-    # Estimate path derivatives and curvature using the fit splines
+    # Get estimate of path derivatives using the fit splines
     x_dot = spline_x.derivative()
     y_dot = spline_y.derivative()
     x_ddot = x_dot.derivative()
     y_ddot = y_dot.derivative()
-    curvature = (-x_ddot(accumulated_euclid_dist) * y_dot(accumulated_euclid_dist) + \
-                 x_dot(accumulated_euclid_dist) * y_ddot(accumulated_euclid_dist))/ \
-                ((x_dot(accumulated_euclid_dist))**2 + (y_dot(accumulated_euclid_dist))**2)**(1.5)
-    # heading = np.arctan2(y_dot(accumulated_euclid_dist), x_dot(accumulated_euclid_dist))
+
+    # Calculate and return heading and curvature estimates using path derivatives
+    heading = np.arctan2(y_dot(euclid_dist), x_dot(euclid_dist))
+    curvature = (-x_ddot(euclid_dist) * y_dot(euclid_dist) + x_dot(euclid_dist) * y_ddot(euclid_dist))/ \
+                ((x_dot(euclid_dist))**2 + (y_dot(euclid_dist))**2)**(1.5)
+    
+    return heading, curvature
+
+
+### Velocity Profile Generation ###
+
+# Generate Velocity Profile using Simplified Forward-Backward Solver
+def velocity_profile_generator(pairwise_dist, curvature):
+    # Generate initial profile based on curvature and max lateral acceleration
+    curvature_abs = np.abs(curvature)
+    velocity = np.where(curvature_abs == 0, velocity_max, acc_lat_max/curvature_abs)
+    velocity = np.where(velocity > velocity_max, velocity_max, velocity)
+    velocity[0] = 0.0
+    velocity[-1] = 0.0
+
+    # Apply forward pass on velocity profile (have to loop over array)
+    for i in range(0, velocity.shape[0] - 1):
+        velocity_squared = velocity[i] * velocity[i]
+        acc_lat = velocity_squared * curvature_abs[i]
+        acc_long = acc_long_max * np.sqrt(np.maximum(1.0 - (acc_lat * acc_lat)/(acc_lat_max * acc_lat_max), 0.0))
+        velocity_new = np.sqrt(velocity_squared + 2.0 * acc_long * pairwise_dist[i+1])
+        velocity[i+1] = velocity_new if (velocity_new < velocity[i+1]) else velocity[i+1] 
+
+    # Apply backward pass on velocity profile (have to loop over array)
+    for i in range(velocity.shape[0] - 1, 0, -1):
+        velocity_squared = velocity[i] * velocity[i]
+        acc_lat = velocity_squared * curvature_abs[i]
+        acc_long = acc_long_max * np.sqrt(np.maximum(1.0 - (acc_lat * acc_lat)/(acc_lat_max * acc_lat_max), 0.0))
+        velocity_new = np.sqrt(velocity_squared + 2.0 * acc_long * pairwise_dist[i])
+        velocity[i-1] = velocity_new if (velocity_new < velocity[i-1]) else velocity[i-1]
+
+    return velocity
+
+### Full Trajectory Generation ###
+
+# Generate Trajectory using the Previous Functions
+def traj_generator(path_type, *args):
+    # Generate path based on input parameters
+    path_x, path_y = path_generator(path_type,*args)
+
+    # Get pairwise and accumulated Euclidean distances as well as heading and curvature
+    pairwise_dist, accumulated_euclid_dist = calc_euclidean_distance(path_x, path_y)
+    heading, curvature = calc_heading_curvature(path_x, path_y, accumulated_euclid_dist)
 
     # Generate velocity profile
-    velocity_min = 2.0
-    velocity_max = 8.0
-    velocity = np.maximum(velocity_max - 10.0 * np.sqrt(np.abs(curvature)), velocity_min)
-    velocity_step = 0.5
-    velocity_ramp = np.arange(0.0, velocity_max, velocity_step)
-    velocity[:velocity_ramp.shape[0]] = np.minimum(velocity_ramp, velocity[:velocity_ramp.shape[0]])
-    velocity[-velocity_ramp.shape[0]:] = np.minimum(np.flip(velocity_ramp), velocity[-velocity_ramp.shape[0]:])
+    velocity = velocity_profile_generator(pairwise_dist, curvature)
 
-    # Return concatenated trajectory
-    return np.concatenate((path_x, path_y, curvature, velocity))
+    # Return concatenated trajectory (heading not required for open loop control)
+    return np.concatenate((path_x, path_y, curvature, velocity))   
 
-def main():
-    # Paths (one is to be uncommented)
+if __name__ == '__main__':
+    # Initialize ROS node
+    rospy.init_node('path_planner')
+
+    # Initialize publishers 
+    pub_traj = rospy.Publisher('/path_planner/trajectory', Float32MultiArray, queue_size=0, latch=True)
+
+    # Print parameter values
+    rospy.loginfo(f"velocity_max: {velocity_max:.4f} (m/s)")
+    rospy.loginfo(f"acc_long_max: {acc_long_max:.4f} (m/s^2)")
+    rospy.loginfo(f"acc_lat_max: {acc_lat_max:.4f} (m/s^2)")
+
+    # Initialize path (to be modified)
+
     # path_length = 75.0
     # step_size = 0.05
     # position_current = np.array([0.0, 0.0])
-    # traj_concat = path_data('straight',path_length, step_size, position_current)
+    # traj_concat = path_data('straight', path_length, step_size, position_current)
 
     # path_length = 2 * np.pi
     # path_radius = 6
@@ -184,13 +243,10 @@ def main():
     path_radius = 7.0
     step_size = 0.5 * np.pi/180
     position_current = np.array([0.0, 0.0])
-    traj_concat = path_data('infinity', path_radius, step_size, position_current)
-    
-    rospy.init_node('path_planner')
-    pub_traj = rospy.Publisher('/path_planner/trajectory', Float32MultiArray, queue_size=0, latch=True)
+    traj_concat = traj_generator('infinity', path_radius, step_size, position_current)
+
+    # Main infinite loop
     rate = rospy.Rate(1)
-    initial_delay = 2
-    rospy.sleep(initial_delay)
     has_published_traj = False
     while not rospy.is_shutdown():
 
@@ -216,10 +272,3 @@ def main():
             has_published_traj = True
         
         rate.sleep()
-        
-
-if __name__ == '__main__':
-    try:
-        main()
-    except rospy.ROSInterruptException:
-        pass

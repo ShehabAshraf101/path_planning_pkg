@@ -2,9 +2,17 @@
 
 
 <launch>
+  <!-- Input Arguments -->
+  <arg name="velocity_max" default="8.0" />
+  <arg name="acc_long_max" default="2.0" />
+  <arg name="acc_lat_max" default="1.0" />
 
+  <!-- Launch Path Planner Node -->
   <node pkg="path_planning_pkg" type="path_planner.py" name="path_planner" output="screen">
-
+    <param name="velocity_max" value="$(arg velocity_max)" />
+    <param name="acc_long_max" value="$(arg acc_long_max)" />
+    <param name="acc_lat_max" value="$(arg acc_lat_max)" />
   </node>
+
 </launch>
 
