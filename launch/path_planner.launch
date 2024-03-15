@@ -3,8 +3,22 @@
 
 <launch>
 
+    <param name="path_type" type="str" value="infinity"/>
+    <!-- Type of path: 'straight', 'circular', 'lane_change', 'infinity' -->
+    <param name="path_length" type="str" value="6.28"/>
+    <param name="path_length_straight" type="str" value="75.0"/>
+    <param name="path_length_curve_x" type="str" value="30.0"/>
+    <param name="path_radius" type="str" value="6"/> <!-- Circular or infinity -->
+    <param name="step_size" type="str" value="0.00873"/>
+    <param name="rotate_ccw" type="str" value="false"/>
+    <param name="lane_width" type="str" value="3.7"/>
+    <param name="turn_left" type="str" value="true"/>
+    <param name="position_current" type="str" value="[0.0,0.0]"/>
+
+
   <node pkg="path_planning_pkg" type="path_planner.py" name="path_planner" output="screen">
 
   </node>
+
 </launch>
 

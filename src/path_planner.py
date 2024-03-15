@@ -64,7 +64,7 @@ def path_generator_infinity(path_radius, step_size, position_current):
     # Calculate the lemniscate constant a
     path_constant = 4 * path_radius/(4 - np.sqrt(6))
 
-    # Generate the infinity sign (Lemniscate of Bernouli)
+    # Generate the infinity sign (Lemniscate of Bernoulli)
     t = np.arange(-np.pi/2, 1.5*np.pi + step_size, step_size)
     path = np.array([(path_constant * np.sin(t) * np.cos(t))/(1 + np.sin(t)**2),
                     -(path_constant * np.cos(t))/(1 + np.sin(t)**2)])
@@ -147,6 +147,7 @@ def path_data(path_type, *args):
     curvature = (-x_ddot(accumulated_euclid_dist) * y_dot(accumulated_euclid_dist) + \
                  x_dot(accumulated_euclid_dist) * y_ddot(accumulated_euclid_dist))/ \
                 ((x_dot(accumulated_euclid_dist))**2 + (y_dot(accumulated_euclid_dist))**2)**(1.5)
+    
     # heading = np.arctan2(y_dot(accumulated_euclid_dist), x_dot(accumulated_euclid_dist))
 
     # Generate velocity profile
@@ -162,30 +163,32 @@ def path_data(path_type, *args):
     return np.concatenate((path_x, path_y, curvature, velocity))
 
 def main():
-    # Paths (one is to be uncommented)
-    # path_length = 75.0
-    # step_size = 0.05
-    # position_current = np.array([0.0, 0.0])
-    # traj_concat = path_data('straight',path_length, step_size, position_current)
+    
+    controller_type = rospy.get_param("controller_type")
+    path_type = rospy.get_param("path_type")
+    path_length = float(rospy.get_param("path_length"))
+    path_length_straight = float(rospy.get_param("path_length_straight"))
+    path_length_curve_x = float(rospy.get_param("path_length_curve_x"))
+    path_radius = float(rospy.get_param("path_radius"))
+    step_size = float(rospy.get_param("step_size"))
+    rotate_ccw = rospy.get_param("rotate_ccw").lower() == "true"
+    lane_width = float(rospy.get_param("lane_width"))
+    turn_left = rospy.get_param("turn_left").lower() == "true"
+    position_current = eval(rospy.get_param("position_current"))
 
-    # path_length = 2 * np.pi
-    # path_radius = 6
-    # step_size = 0.5 * np.pi/180
-    # position_current = np.array([0.0, 0.0])
-    # traj_concat = path_data('circular', path_length, path_radius, step_size, position_current, False)
-    
-    # path_length_straight = 75.0
-    # path_length_curve_x = 30.0
-    # step_size = 0.05
-    # lane_width = 3.7
-    # position_current = np.array([-90.0, 0.0])
-    # traj_concat = path_data('lane_change', path_length_straight, path_length_curve_x, step_size, lane_width, position_current, True)
-    
-    path_radius = 7.0
-    step_size = 0.5 * np.pi/180
-    position_current = np.array([0.0, 0.0])
-    traj_concat = path_data('infinity', path_radius, step_size, position_current)
-    
+    if path_type == "straight":
+            traj_concat = path_data("straight", path_length, step_size, position_current)
+    elif path_type == "circular":
+            traj_concat = path_data("circular", path_length, path_radius, step_size, position_current, rotate_ccw)
+    elif path_type == "lane_change":
+            traj_concat = path_data("lane_change", path_length_straight, path_length_curve_x, step_size, lane_width, position_current, turn_left)
+    elif path_type == "infinity":
+            traj_concat = path_data("infinity", path_radius, step_size, position_current)
+    else:
+            rospy.logwarn("Invalid path_type. Choosing default: 'straight'")
+            traj_concat = path_data("straight", path_length, step_size, position_current)
+
+ 
     rospy.init_node('path_planner')
     pub_traj = rospy.Publisher('/path_planner/trajectory', Float32MultiArray, queue_size=0, latch=True)
     rate = rospy.Rate(1)
