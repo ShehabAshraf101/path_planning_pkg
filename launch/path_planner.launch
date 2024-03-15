@@ -2,12 +2,16 @@
 
 
 <launch>
+  <!-- Input Arguments -->
+  <arg name="velocity_max" default="8.0" />
+  <arg name="acc_long_max" default="2.0" />
+  <arg name="acc_lat_max" default="1.0" />
 
     <param name="path_type" type="str" value="infinity"/>
     <!-- Type of path: 'straight', 'circular', 'lane_change', 'infinity' -->
     <param name="path_length" type="str" value="6.28"/>
-    <param name="path_length_straight" type="str" value="75.0"/>
-    <param name="path_length_curve_x" type="str" value="30.0"/>
+    <param name="path_length_straight" type="str" value="7.0"/>
+    <param name="path_length_curve_x" type="str" value="3.0"/>
     <param name="path_radius" type="str" value="6"/> <!-- Circular or infinity -->
     <param name="step_size" type="str" value="0.00873"/>
     <param name="rotate_ccw" type="str" value="false"/>
@@ -16,8 +20,11 @@
     <param name="position_current" type="str" value="[0.0,0.0]"/>
 
 
+  <!-- Launch Path Planner Node -->
   <node pkg="path_planning_pkg" type="path_planner.py" name="path_planner" output="screen">
-
+    <param name="velocity_max" value="$(arg velocity_max)" />
+    <param name="acc_long_max" value="$(arg acc_long_max)" />
+    <param name="acc_lat_max" value="$(arg acc_lat_max)" />
   </node>
 
 </launch>
