@@ -1,0 +1,70 @@
+<?xml version='1.0'?>
+
+<launch>
+  <!-- Input Arguments - Topic Names -->
+  <arg name="odom_topic_name" default="/odom" />
+  <arg name="waypoint_topic_name" default="/path_planner/waypoints" />
+  <arg name="object_topic_name" default="/yolo_objects" />
+  <arg name="lane_topic_name" default="/lane_detection" />
+
+  <!-- Input Arguments - 2D Grid Parameters -->
+  <arg name="lane_sampling_size" default="30" />
+  <arg name="grid_size" default="60" />
+  <arg name="grid_allow_diag_moves" default="true" />
+  <arg name="grid_resolution" default="0.5" />
+
+  <!-- Input Arguments - Vehicle Parameters -->
+  <arg name="vehicle_length" default="2.6" />
+  <arg name="vehicle_width" default="1.6" />
+  <arg name="wheelbase" default="2.269" />
+  <arg name="rear_to_cg" default="1.18" />
+  <arg name="max_velocity" default="5.0" />
+  <arg name="coast_velocity" default="1.0" />
+  <arg name="max_lat_acc" default="2.0" />
+  <arg name="max_long_acc" default="2.0" />
+  <arg name="max_long_dec" default="3.0" />
+
+  <!-- Input Arguments - 3D Grid Parameters -->
+  <arg name="num_angle_bins" default="72" />
+  <arg name="num_actions" default="1" />
+  <arg name="step_size" default="0.75" />
+  <arg name="steering" default="[-30, -15, 0, 15, 30]" /> <!-- In degrees -->
+  <arg name="curvature_weights" default="[1.0, 1.5, 0, 1.5, 1.0]" /> <!-- Must be same size as steering -->
+
+  <!-- Input Arguments - Dubins Paths Parameters -->
+  <arg name="dubins_shot_interval" default="300" />
+  <arg name="dubins_shot_interval_decay" default="10" />
+
+  <!-- Launch Local Planner -->
+  <node pkg="path_planning_pkg" type="local_planner" name="local_planner" output="screen">
+    <param name="odom_topic_name" value="$(arg odom_topic_name)" />
+    <param name="waypoint_topic_name" value= "$(arg waypoint_topic_name)" />
+    <param name="object_topic_name" value="$(arg object_topic_name)" />
+    <param name="lane_topic_name" value="$(arg lane_topic_name)" />
+
+    <param name="lane_sampling_size" value="$(arg lane_sampling_size)" />
+    <param name="grid_size" value="$(arg grid_size)" />
+    <param name="grid_allow_diag_moves" value="$(arg grid_allow_diag_moves)" />
+    <param name="grid_resolution" value="$(arg grid_resolution)" />
+
+    <param name="vehicle_length" value="$(arg vehicle_length)" />
+    <param name="vehicle_width" value="$(arg vehicle_width)" />
+    <param name="wheelbase" value="$(arg wheelbase)" />
+    <param name="rear_to_cg" value="$(arg rear_to_cg)" />
+    <param name="max_velocity" value="$(arg max_velocity)" />
+    <param name="coast_velocity" value="$(arg coast_velocity)" />
+    <param name="max_lat_acc" value="$(arg max_lat_acc)" />
+    <param name="max_long_acc" value="$(arg max_long_acc)" />
+    <param name="max_long_dec" value="$(arg max_long_dec)" />
+
+    <param name="num_angle_bins" value="$(arg num_angle_bins)" />
+    <param name="num_actions" value="$(arg num_actions)" />
+    <param name="step_size" value="$(arg step_size)" />
+    <param name="steering" value="$(arg steering)" /> 
+    <param name="curvature_weights" value="$(arg curvature_weights)" />
+
+    <param name="dubins_shot_interval" value="$(arg dubins_shot_interval)" />
+    <param name="dubins_shot_interval_decay" value="$(arg dubins_shot_interval_decay)" />
+  </node>
+
+</launch>

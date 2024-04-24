@@ -3,17 +3,22 @@ project(path_planning_pkg)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
+set(CMAKE_CXX_STANDARD 14)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   rospy
+  geometry_msgs
+  roscpp
+  std_msgs
+  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-
+find_package(Eigen3 REQUIRED)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -45,11 +50,10 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+add_message_files(
+  FILES
+  Waypoint.msg
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -66,10 +70,11 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  geometry_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -101,9 +106,9 @@ find_package(catkin REQUIRED COMPONENTS
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES path_planning_pkg
-#  CATKIN_DEPENDS rospy
+ INCLUDE_DIRS include
+ LIBRARIES path_planning_pkg
+ CATKIN_DEPENDS rospy geometry_msgs roscpp std_msgs message_runtime
 #  DEPENDS system_lib
 )
 
@@ -115,13 +120,36 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(
 # include
-  ${catkin_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS} 
 )
+include_directories(include/path_planning_pkg)
+
+add_compile_options(-Wall -O3 -DSTORE_GRID_AS_REFERENCE)
 
 ## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/path_planning_pkg.cpp
-# )
+# add_library(astar_lib STATIC
+#   lib/AStar.cpp)
+
+add_library(local_planner_lib STATIC
+  lib/AStar.cpp
+  lib/Dubins.cpp
+  lib/Grid2D.cpp
+  lib/Grid3D.cpp
+  lib/HybridAStar.cpp
+  lib/Node2D.cpp
+  lib/Node3D.cpp
+  lib/Obstacle.cpp
+  lib/VehicleModel.cpp
+  lib/VelocityGenerator.cpp
+)
+
+# target_compile_definitions(astar_lib PUBLIC)
+
+# Compiling and Linking C++ source code
+
+add_executable(local_planner src/local_planner.cpp)
+target_link_libraries(local_planner ${catkin_LIBRARIES} local_planner_lib)
+add_dependencies(local_planner path_planning_pkg_generate_messages_cpp)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries

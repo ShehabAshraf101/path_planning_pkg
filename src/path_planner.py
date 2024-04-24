@@ -9,7 +9,6 @@ from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 ### Loading Parameters from the ROSPARAM Server ###
 
 # Path Parameters
-controller_type = rospy.get_param("controller_type")
 path_type = rospy.get_param("path_type")
 path_length = float(rospy.get_param("path_length"))
 path_length_straight = float(rospy.get_param("path_length_straight"))
@@ -217,7 +216,8 @@ def traj_generator(path_type, *args):
     velocity = velocity_profile_generator(pairwise_dist, curvature)
 
     # Return concatenated trajectory (heading not required for open loop control)
-    return np.concatenate((path_x, path_y, curvature, velocity))   
+    # return np.concatenate((path_x, path_y, curvature, velocity))
+    return np.concatenate((path_x, path_y, heading, velocity)) 
 
 if __name__ == '__main__':
     # Initialize ROS node
