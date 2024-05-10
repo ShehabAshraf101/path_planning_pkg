@@ -132,20 +132,22 @@ T Dubins<T>::get_shortest_path(const Vector3D<T>& start, const Vector3D<T>& goal
     {
     case Path::RSR:
         sample_path_rsr(center_s_r, center_g_r, path, path_curvature);
-        return path_length_min;
+        break;
     
     case Path::RSL:
         sample_path_rsl(center_s_r, center_g_l, path, path_curvature);
-        return path_length_min;
+        break;
 
     case Path::LSR:
         sample_path_lsr(center_s_l, center_g_r, path, path_curvature);
-        return path_length_min;
+        break;
 
-    default:
+    case Path::LSL:
         sample_path_lsl(center_s_l, center_g_l, path, path_curvature);
-        return path_length_min;
+        break;
     }
+
+    return path_length_min;
 }
 
 template <typename T>
@@ -162,9 +164,11 @@ std::string Dubins<T>::get_path_type() const
         case Path::LSR: 
             return std::string("LSR");
 
-        default:
+        case Path::LSL:
             return std::string("LSL");
-    } 
+    }
+
+    return std::string("undefined"); 
 }
 
 

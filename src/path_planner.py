@@ -9,21 +9,24 @@ from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 ### Loading Parameters from the ROSPARAM Server ###
 
 # Path Parameters
-path_type = rospy.get_param("path_type")
-path_length = float(rospy.get_param("path_length"))
-path_length_straight = float(rospy.get_param("path_length_straight"))
-path_length_curve_x = float(rospy.get_param("path_length_curve_x"))
-path_radius = float(rospy.get_param("path_radius"))
-step_size = float(rospy.get_param("step_size"))
-rotate_ccw = rospy.get_param("rotate_ccw").lower() == "true"
-lane_width = float(rospy.get_param("lane_width"))
-turn_left = rospy.get_param("turn_left").lower() == "true"
-position_current = eval(rospy.get_param("position_current"))
+path_type               = rospy.get_param("/path_planner/path_type")
+path_length             = rospy.get_param("/path_planner/path_length")
+path_length_straight    = rospy.get_param("/path_planner/path_length_straight")
+path_length_curve_x     = rospy.get_param("/path_planner/path_length_curve_x")
+path_radius             = rospy.get_param("/path_planner/path_radius")
+step_size               = rospy.get_param("/path_planner/step_size")
+rotate_ccw              = rospy.get_param("/path_planner/rotate_ccw")
+lane_width              = rospy.get_param("/path_planner/lane_width")
+turn_left               = rospy.get_param("/path_planner/turn_left")
+position_current        = eval(rospy.get_param("/path_planner/position_current"))
+publish_heading         = rospy.get_param("/path_planner/publish_heading")
 
 # Velocity Profile Parameters
 velocity_max = rospy.get_param('/path_planner/velocity_max', default=8.0)
 acc_long_max = rospy.get_param('/path_planner/acc_long_max', default=2.0)
+dec_long_max = rospy.get_param('/path_planner/dec_long_max', default=3.0)
 acc_lat_max  = rospy.get_param('/path_planner/acc_lat_max', default=2.5)
+
 
 ### Path Generation ### 
 
@@ -86,8 +89,6 @@ def path_generator_infinity(path_radius, step_size, position_current):
     t = np.arange(-np.pi/2, 1.5*np.pi + step_size, step_size)
     path = np.array([(path_constant * np.sin(t) * np.cos(t))/(1 + np.sin(t)**2),
                     -(path_constant * np.cos(t))/(1 + np.sin(t)**2)])
-    path[0, :] += position_current[0]
-    path[1, :] += position_current[1]
     
     # Rotate path to align with orientation of the vehicle
     theta = np.arctan2(path[1, 1] - path[1, 0], path[0, 1] - path[0, 0])
@@ -95,6 +96,9 @@ def path_generator_infinity(path_radius, step_size, position_current):
                          [-np.sin(theta), np.cos(theta)]]
                         )
     path = np.matmul(rot_theta, path)
+
+    path[0, :] += position_current[0]
+    path[1, :] += position_current[1]
 
     return path[0, :], path[1, :]
 
@@ -145,12 +149,13 @@ def calc_euclidean_distance(path_x, path_y):
     - pairwise_distances: numpy array containing the Euclidean distances between consecutive points
     - accumulated_distances: numpy array containing the accumulated Euclidean distances
     """
-    points = np.column_stack((path_x, path_y))
-    pairwise_distances = np.sqrt(np.sum(np.diff(points, axis=0)**2, axis=1))
+    pairwise_distances = np.empty_like(path_x)
+    pairwise_distances[0] = 0.0
+    pairwise_distances[1:] = np.hypot(np.diff(path_x), np.diff(path_y))
     accumulated_distances = np.cumsum(pairwise_distances)
 
     # Insert 0 at the beginning for the starting point
-    return np.insert(pairwise_distances, 0, 0), np.insert(accumulated_distances, 0, 0)
+    return pairwise_distances, accumulated_distances
 
 # Calculate Path Heading and Curvature
 def calc_heading_curvature(path_x, path_y, euclid_dist):
@@ -180,7 +185,7 @@ def velocity_profile_generator(pairwise_dist, curvature):
     curvature_abs = np.abs(curvature)
     velocity = np.where(curvature_abs == 0, velocity_max, acc_lat_max/curvature_abs)
     velocity = np.where(velocity > velocity_max, velocity_max, velocity)
-    velocity[0] = 0.0
+    velocity[0] = 0.2
     velocity[-1] = 0.0
 
     # Apply forward pass on velocity profile (have to loop over array)
@@ -195,7 +200,7 @@ def velocity_profile_generator(pairwise_dist, curvature):
     for i in range(velocity.shape[0] - 1, 0, -1):
         velocity_squared = velocity[i] * velocity[i]
         acc_lat = velocity_squared * curvature_abs[i]
-        acc_long = acc_long_max * np.sqrt(np.maximum(1.0 - (acc_lat * acc_lat)/(acc_lat_max * acc_lat_max), 0.0))
+        acc_long = dec_long_max * np.sqrt(np.maximum(1.0 - (acc_lat * acc_lat)/(acc_lat_max * acc_lat_max), 0.0))
         velocity_new = np.sqrt(velocity_squared + 2.0 * acc_long * pairwise_dist[i])
         velocity[i-1] = velocity_new if (velocity_new < velocity[i-1]) else velocity[i-1]
 
@@ -215,9 +220,11 @@ def traj_generator(path_type, *args):
     # Generate velocity profile
     velocity = velocity_profile_generator(pairwise_dist, curvature)
 
-    # Return concatenated trajectory (heading not required for open loop control)
-    # return np.concatenate((path_x, path_y, curvature, velocity))
-    return np.concatenate((path_x, path_y, heading, velocity)) 
+    # Return concatenated trajectory (return heading if closed_loop and curvature if open_loop)
+    if publish_heading:
+        return np.concatenate((path_x, path_y, heading, velocity)) 
+    else:
+        return np.concatenate((path_x, path_y, curvature, velocity))
 
 if __name__ == '__main__':
     # Initialize ROS node
@@ -226,15 +233,29 @@ if __name__ == '__main__':
     # Initialize publishers 
     pub_traj = rospy.Publisher('/path_planner/trajectory', Float32MultiArray, queue_size=0, latch=True)
 
-    # Print parameter values
-    rospy.loginfo(f"velocity_max: {velocity_max:.4f} (m/s)")
-    rospy.loginfo(f"acc_long_max: {acc_long_max:.4f} (m/s^2)")
-    rospy.loginfo(f"acc_lat_max: {acc_lat_max:.4f} (m/s^2)")
+    # Report the values of all retreived parameters
+    rospy.loginfo("path_type: %s", path_type)
+    rospy.loginfo("path_length: %.4f", path_length)
+    rospy.loginfo("path_length_straight: %.4f", path_length_straight)
+    rospy.loginfo("path_length_curve_x: %.4f", path_length_curve_x)
+    rospy.loginfo("path_radius: %.4f", path_radius)
+    rospy.loginfo("step_size: %.4f", step_size)
+    rospy.loginfo("rotate_ccw: %s", "True" if rotate_ccw==True else "False")
+    rospy.loginfo("lane_width: %.4f", lane_width)
+    rospy.loginfo("turn_left: %s", "True" if turn_left==True else "False")
+    rospy.loginfo("position_current: [%.4f, %.4f]", position_current[0], position_current[1])
+    rospy.loginfo("publish_heading: %s", "True" if publish_heading==True else "False")
+    rospy.loginfo("\n")
 
+    rospy.loginfo("velocity_max: %.4f", velocity_max)
+    rospy.loginfo("acc_long_max: %.4f", acc_long_max)
+    rospy.loginfo("acc_lat_max: %.4f", acc_lat_max)
+    rospy.loginfo("dec_long_max: %.4f", dec_long_max)
+    rospy.loginfo("\n\n")
     # Initialize path (to be modified)
 
     if path_type == "straight":
-            traj_concat = traj_generator("straight", path_length, step_size, position_current)
+            traj_concat = traj_generator("straight", path_length_straight, step_size, position_current)
     elif path_type == "circular":
             traj_concat = traj_generator("circular", path_length, path_radius, step_size, position_current, rotate_ccw)
     elif path_type == "lane_change":

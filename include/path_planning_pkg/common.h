@@ -1,5 +1,5 @@
-#ifndef COMMON
-#define COMMON
+#ifndef PLANNING_COMMON
+#define PLANNING_COMMON
 
 #include <cmath>
 

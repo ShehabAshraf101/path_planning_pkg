@@ -3,27 +3,37 @@
 <launch>
   <!-- Input Arguments -->
   <arg name="velocity_max" default="8.0" />
-  <arg name="acc_long_max" default="2.0" />
-  <arg name="acc_lat_max" default="1.0" />
-  <arg name="path_type" default="str" /> <!-- Type of path: 'straight', 'circular', 'lane_change', 'infinity' -->
-
-    <param name="path_type" type="str" value="infinity"/>
-    <param name="path_length" type="str" value="6.28"/>
-    <param name="path_length_straight" type="str" value="7.0"/>
-    <param name="path_length_curve_x" type="str" value="3.0"/>
-    <param name="path_radius" type="str" value="6"/> <!-- Circular or infinity -->
-    <param name="step_size" type="str" value="0.00873"/>
-    <param name="rotate_ccw" type="str" value="false"/>
-    <param name="lane_width" type="str" value="3.7"/>
-    <param name="turn_left" type="str" value="true"/>
-    <param name="position_current" type="str" value="[0.0,0.0]"/>
-
+  <!-- <arg name="acc_long_max" default="1.5" /> -->
+  <arg name="acc_long_max" default="1.0" /> 
+  <!-- <arg name="dec_long_max" default="2.0" /> -->
+  <arg name="dec_long_max" default="1.0" />
+  <!-- <arg name="acc_lat_max" default="8.0" /> -->
+  <arg name="acc_lat_max" default="2.0" />
+  <arg name="path_type" default="straight" /> <!-- Type of path: 'straight', 'circular', 'lane_change', 'infinity' -->
+  <arg name="publish_heading" default="true" />
 
   <!-- Launch Path Planner Node -->
   <node pkg="path_planning_pkg" type="path_planner.py" name="path_planner" output="screen">
+    <!-- Path related parameters -->
+    <param name="path_type" type="str" value="$(arg path_type)"/>
+    <param name="path_length" value="6.283185307"/>
+    <param name="path_length_straight" value="75.0"/>
+    <param name="path_length_curve_x" value="15.0"/>
+    <param name="path_radius" value="6.0"/> <!-- Circular or infinity -->
+    <param name="step_size" value="0.034906585"/>
+    <!-- <param name="step_size" value="0.25"/> -->
+    <param name="rotate_ccw" value="false"/>
+    <param name="lane_width" value="3.7"/>
+    <param name="turn_left" value="true"/>
+    <param name="position_current" type="str" value="[1.1345, 0.0]"/>
+    <!-- <param name="position_current" type="str" value="[-73.8655, 0.0]"/> -->
+    <param name="publish_heading" value="$(arg publish_heading)" />
+    
+    <!-- Velocity profile related parameters -->
     <param name="velocity_max" value="$(arg velocity_max)" />
     <param name="acc_long_max" value="$(arg acc_long_max)" />
     <param name="acc_lat_max" value="$(arg acc_lat_max)" />
+    <param name="dec_long_max" value="$(arg dec_long_max)" />
   </node>
 
 </launch>
