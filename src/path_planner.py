@@ -183,7 +183,7 @@ def calc_heading_curvature(path_x, path_y, euclid_dist):
 def velocity_profile_generator(pairwise_dist, curvature):
     # Generate initial profile based on curvature and max lateral acceleration
     curvature_abs = np.abs(curvature)
-    velocity = np.where(curvature_abs == 0, velocity_max, acc_lat_max/curvature_abs)
+    velocity = np.where(curvature_abs == 0, velocity_max, np.sqrt(acc_lat_max/curvature_abs))
     velocity = np.where(velocity > velocity_max, velocity_max, velocity)
     velocity[0] = 0.2
     velocity[-1] = 0.0

@@ -2,15 +2,21 @@
 
 <launch>
   <!-- Input Arguments -->
-  <arg name="velocity_max" default="8.0" />
-  <!-- <arg name="acc_long_max" default="1.5" /> -->
+  
+  <!-- For closed-loop controller -->
+  <arg name="velocity_max" default="12.0" />
+  <arg name="acc_long_max" default="1.5" />
+  <arg name="acc_lat_max" default="8.0" />
+  <arg name="dec_long_max" default="2.0" />
+  
+  <!-- For open-loop controller -->
+  <!-- <arg name="velocity_max" default="8.0" />
   <arg name="acc_long_max" default="1.0" /> 
-  <!-- <arg name="dec_long_max" default="2.0" /> -->
   <arg name="dec_long_max" default="1.0" />
-  <!-- <arg name="acc_lat_max" default="8.0" /> -->
-  <arg name="acc_lat_max" default="2.0" />
+  <arg name="acc_lat_max" default="2.0" /> -->
+  
   <arg name="path_type" default="straight" /> <!-- Type of path: 'straight', 'circular', 'lane_change', 'infinity' -->
-  <arg name="publish_heading" default="true" />
+  <arg name="publish_heading" default="true" /> <!-- Set to true if using closed-loop controlelr -->
 
   <!-- Launch Path Planner Node -->
   <node pkg="path_planning_pkg" type="path_planner.py" name="path_planner" output="screen">
