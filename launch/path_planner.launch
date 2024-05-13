@@ -6,10 +6,12 @@
   <arg name="velocity_max" default="8.0" />
   <arg name="acc_long_max" default="2.0" />
   <arg name="acc_lat_max" default="1.0" />
+  <arg name="goal_point" default="I" />
 
-    <param name="path_type" type="str" value="infinity"/>
+
+    <!-- <param name="path_type" type="str" value="infinity"/> -->
     <!-- Type of path: 'straight', 'circular', 'lane_change', 'infinity' -->
-    <param name="path_length" type="str" value="6.28"/>
+    <param name="path_length" type="str" value="20"/>
     <param name="path_length_straight" type="str" value="7.0"/>
     <param name="path_length_curve_x" type="str" value="3.0"/>
     <param name="path_radius" type="str" value="6"/> <!-- Circular or infinity -->
@@ -26,6 +28,13 @@
     <param name="acc_long_max" value="$(arg acc_long_max)" />
     <param name="acc_lat_max" value="$(arg acc_lat_max)" />
   </node>
+  <node pkg="path_planning_pkg" type="global_planner.py" name="global_planner" output="screen">
+    <param name="goal_point" value="$(arg goal_point)" />
+
+  </node>
+  <node pkg="path_planning_pkg" type="behavioral_planner.py" name="behavioral_planner" output="screen">
+  </node>
+
 
 </launch>
 

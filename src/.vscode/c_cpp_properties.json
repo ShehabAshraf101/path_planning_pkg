@@ -1,0 +1,24 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/opt/ros/noetic/include/**",
+        "/home/shehab/catkin_ws/src/coppeliasim_plugin_velodyne/include/**",
+        "/home/shehab/catkin_ws/src/my_robot_controller/include/**",
+        "/home/shehab/catkin_ws/src/simROS/include/**",
+        "/home/shehab/catkin_ws/src/vehicle_control_pkg/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
