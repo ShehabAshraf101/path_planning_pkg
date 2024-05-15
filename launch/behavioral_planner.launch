@@ -1,0 +1,28 @@
+<?xml version='1.0'?>
+
+<launch>
+    <!-- Input Arguments -->
+    <arg name="pose_topic_name" default="/odom" />
+    <arg name="object_topic_name" default="/objects" />
+    <arg name="global_plan_topic_name" default="/global_planner/path" />
+    <arg name="update_rate" default="10.0" />
+    <arg name="wp_proximity_up_threshold" default="15.0" />
+    <arg name="wp_proximity_lw_threshold" default="3.0" />
+    <arg name="velocity_threshold" default="0.1" />
+    <arg name="stop_sign_time_threshold" default="5.0" />
+    <arg name="yield_sign_time_threshold" default="2.0" />
+
+    <!-- Launch Node -->
+    <node pkg="path_planning_pkg" type="behavioral_planner.py" name="behavioral_planner" output="screen" >
+        <param name="pose_topic_name" value="$(arg pose_topic_name)" />
+        <param name="object_topic_name" value="$(arg object_topic_name)" />
+        <param name="global_plan_topic_name" value="$(arg global_plan_topic_name)" />
+        <param name="update_rate" value="$(arg update_rate)" />
+        <param name="wp_proximity_up_threshold" value="$(arg wp_proximity_up_threshold)" />
+        <param name="wp_proximity_lw_threshold" value="$(arg wp_proximity_lw_threshold)" />
+        <param name="velocity_threshold" value="$(arg velocity_threshold)" />
+        <param name="stop_sign_time_threshold" value="$(arg stop_sign_time_threshold)" />
+        <param name="yield_sign_time_threshold" value="$(arg yield_sign_time_threshold)" />
+    </node>
+    
+</launch>

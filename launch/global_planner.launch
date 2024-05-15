@@ -1,0 +1,12 @@
+<?xml version='1.0'?>
+
+<launch>
+    <!-- Input Arguments -->
+    <arg name="pose_topic_name" default="/odom" />
+    
+    <!-- Launch Node -->
+    <node pkg="path_planning_pkg" type="global_planner.py" name="global_planner" output="screen">
+        <param name="pose_topic_name" value="$(arg pose_topic_name)" />
+    </node>
+
+</launch>

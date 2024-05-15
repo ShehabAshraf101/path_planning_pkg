@@ -19,7 +19,7 @@
   <arg name="publish_heading" default="true" /> <!-- Set to true if using closed-loop controlelr -->
 
   <!-- Launch Path Planner Node -->
-  <node pkg="path_planning_pkg" type="path_planner.py" name="path_planner" output="screen">
+  <node pkg="path_planning_pkg" type="offline_planner.py" name="offline_planner" output="screen">
     <!-- Path related parameters -->
     <param name="path_type" type="str" value="$(arg path_type)"/>
     <param name="path_length" value="6.283185307"/>

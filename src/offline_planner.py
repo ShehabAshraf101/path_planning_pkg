@@ -9,23 +9,23 @@ from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 ### Loading Parameters from the ROSPARAM Server ###
 
 # Path Parameters
-path_type               = rospy.get_param("/path_planner/path_type")
-path_length             = rospy.get_param("/path_planner/path_length")
-path_length_straight    = rospy.get_param("/path_planner/path_length_straight")
-path_length_curve_x     = rospy.get_param("/path_planner/path_length_curve_x")
-path_radius             = rospy.get_param("/path_planner/path_radius")
-step_size               = rospy.get_param("/path_planner/step_size")
-rotate_ccw              = rospy.get_param("/path_planner/rotate_ccw")
-lane_width              = rospy.get_param("/path_planner/lane_width")
-turn_left               = rospy.get_param("/path_planner/turn_left")
-position_current        = eval(rospy.get_param("/path_planner/position_current"))
-publish_heading         = rospy.get_param("/path_planner/publish_heading")
+path_type               = rospy.get_param("/offline_planner/path_type")
+path_length             = rospy.get_param("/offline_planner/path_length")
+path_length_straight    = rospy.get_param("/offline_planner/path_length_straight")
+path_length_curve_x     = rospy.get_param("/offline_planner/path_length_curve_x")
+path_radius             = rospy.get_param("/offline_planner/path_radius")
+step_size               = rospy.get_param("/offline_planner/step_size")
+rotate_ccw              = rospy.get_param("/offline_planner/rotate_ccw")
+lane_width              = rospy.get_param("/offline_planner/lane_width")
+turn_left               = rospy.get_param("/offline_planner/turn_left")
+position_current        = eval(rospy.get_param("/offline_planner/position_current"))
+publish_heading         = rospy.get_param("/offline_planner/publish_heading")
 
 # Velocity Profile Parameters
-velocity_max = rospy.get_param('/path_planner/velocity_max', default=8.0)
-acc_long_max = rospy.get_param('/path_planner/acc_long_max', default=2.0)
-dec_long_max = rospy.get_param('/path_planner/dec_long_max', default=3.0)
-acc_lat_max  = rospy.get_param('/path_planner/acc_lat_max', default=2.5)
+velocity_max = rospy.get_param('/offline_planner/velocity_max', default=8.0)
+acc_long_max = rospy.get_param('/offline_planner/acc_long_max', default=2.0)
+dec_long_max = rospy.get_param('/offline_planner/dec_long_max', default=3.0)
+acc_lat_max  = rospy.get_param('/offline_planner/acc_lat_max', default=2.5)
 
 
 ### Path Generation ### 
@@ -185,7 +185,7 @@ def velocity_profile_generator(pairwise_dist, curvature):
     curvature_abs = np.abs(curvature)
     velocity = np.where(curvature_abs == 0, velocity_max, np.sqrt(acc_lat_max/curvature_abs))
     velocity = np.where(velocity > velocity_max, velocity_max, velocity)
-    velocity[0] = 0.2
+    velocity[0] = 0.5
     velocity[-1] = 0.0
 
     # Apply forward pass on velocity profile (have to loop over array)
@@ -228,10 +228,10 @@ def traj_generator(path_type, *args):
 
 if __name__ == '__main__':
     # Initialize ROS node
-    rospy.init_node('path_planner')
+    rospy.init_node('offline_planner')
 
     # Initialize publishers 
-    pub_traj = rospy.Publisher('/path_planner/trajectory', Float32MultiArray, queue_size=0, latch=True)
+    pub_traj = rospy.Publisher('/offline_planner/trajectory', Float32MultiArray, queue_size=0, latch=True)
 
     # Report the values of all retreived parameters
     rospy.loginfo("path_type: %s", path_type)

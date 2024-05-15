@@ -1,0 +1,47 @@
+<?xml version='1.0'?>
+
+<launch>
+    <!-- Input Arguments -->
+    <arg name="use_online_planner" default="false" />
+    <arg name="path_type" default="straight" /> <!-- Type of path: 'straight', 'circular', 'lane_change', 'infinity' -->
+    <arg name="publish_heading" default="true" /> <!-- Set to true if using closed-loop controlelr -->
+    
+    <arg name="pose_topic_name" default="/odom" />
+    <arg name="object_topic_name" default="/yolo_objects" />
+    <arg name="lane_topic_name" default="/lane_detection" />
+    
+    <arg name="vehicle_length" default="2.6" />
+    <arg name="vehicle_width" default="1.6" />
+    <arg name="wheelbase" default="2.269" />
+    <arg name="rear_to_cg" default="1.18" />
+
+    <!-- Launch Offline Planner Node -->
+    <include file="$(find path_planning_pkg)/launch/offline_planner.launch" if="$(eval use_online_planner == false)" >
+        <arg name="path_type" value="$(arg path_type)" />
+        <arg name="publish_heading" value="$(arg publish_heading)" />
+    </include> 
+
+    <!-- Launch Global Planner Node -->
+    <include file="$(find path_planning_pkg)/launch/global_planner.launch" if="$(eval use_online_planner == true)" >
+        <arg name="pose_topic_name" value="$(arg pose_topic_name)" />
+    </include>
+
+    <!-- Launch Behavioral Planner Node -->
+    <include file="$(find path_planning_pkg)/launch/behavioral_planner.launch" if="$(eval use_online_planner == true)" >
+        <arg name="pose_topic_name" value="$(arg pose_topic_name)" />
+        <arg name="object_topic_name" value="$(arg object_topic_name)" />
+    </include>
+
+    <!-- Launch Local Planner Node -->
+    <!-- <include file="$(find path_planning_pkg)/launch/local_planner.launch" if="$(eval use_online_planner == true)" >
+        <arg name="pose_topic_name" value="$(arg pose_topic_name)" />
+        <arg name="object_topic_name" value="$(arg object_topic_name)" />
+        <arg name="lane_topic_name" value="$(arg lane_topic_name)" />
+
+        <arg name="vehicle_length" value="$(arg vehicle_length)" />
+        <arg name="vehicle_width" value="$(arg vehicle_width)" />
+        <arg name="wheelbase" value="$(arg wheelbase)" />
+        <arg name="rear_to_cg" value="$(arg rear_to_cg)" />
+    </include> -->
+
+</launch>
