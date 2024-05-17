@@ -185,7 +185,7 @@ def velocity_profile_generator(pairwise_dist, curvature):
     curvature_abs = np.abs(curvature)
     velocity = np.where(curvature_abs == 0, velocity_max, np.sqrt(acc_lat_max/curvature_abs))
     velocity = np.where(velocity > velocity_max, velocity_max, velocity)
-    velocity[0] = 0.5
+    velocity[0] = 0.1
     velocity[-1] = 0.0
 
     # Apply forward pass on velocity profile (have to loop over array)

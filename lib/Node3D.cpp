@@ -6,9 +6,14 @@ using namespace planning;
 template <typename T>
 Node3D<T>::Node3D(Vector3D<T>& pose2D, T cost_g, T vmin_sqr, int curvature_index, int angle_bin, 
                 const Node2D<T>* base_node, const Node3D<T>* prev) :
-        _pose2D(pose2D), _cost_g(cost_g), _cost_f(cost_g), _vmin_sqr(vmin_sqr), 
-        _curvature_index(curvature_index), _angle_bin(angle_bin),
-        _base_node(base_node), _prev(prev) {}
+        _pose2D(pose2D), 
+        _cost_g(cost_g), 
+        _cost_f(cost_g), 
+        _vmin_sqr(vmin_sqr), 
+        _curvature_index(curvature_index), 
+        _angle_bin(angle_bin),
+        _base_node(base_node), 
+        _prev(prev) {}
 
 template <typename T>
 Node3D<T>::Node3D(Vector3D<T>& pose2D, T cost_g, T vmin_sqr, int curvature_index, int angle_bin, 
@@ -17,9 +22,14 @@ Node3D<T>::Node3D(Vector3D<T>& pose2D, T cost_g, T vmin_sqr, int curvature_index
 
 template <typename T>
 Node3D<T>::Node3D() : 
-        _pose2D(Vector3D<T>()), _cost_g(static_cast<T>(0)), _cost_f(static_cast<T>(0)), 
-        _vmin_sqr(static_cast<T>(0)), _curvature_index(0), _angle_bin(0),
-        _base_node(nullptr), _prev(nullptr) {}
+        _pose2D(Vector3D<T>()), 
+        _cost_g(static_cast<T>(0)), 
+        _cost_f(static_cast<T>(0)), 
+        _vmin_sqr(static_cast<T>(0)), 
+        _curvature_index(0), 
+        _angle_bin(0),
+        _base_node(nullptr), 
+        _prev(nullptr) {}
 
 // Functions
 template <typename T>

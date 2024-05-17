@@ -5,8 +5,10 @@ using namespace planning;
 // Contructors
 template <typename T>
 Dubins<T>::Dubins(T r_min, T step_size) : 
-        _r_min(r_min), _step_size(step_size), 
-        _ang_step_size(step_size/r_min), _path_type(Path::RSR) 
+        _r_min(r_min), 
+        _step_size(step_size), 
+        _ang_step_size(step_size/r_min), 
+        _path_type(Path::RSR) 
 {
     _params.fill(static_cast<T>(0));
 }

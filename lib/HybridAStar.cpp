@@ -4,15 +4,20 @@ using namespace planning;
 
 // Contructors
 template <typename T>
-HybridAStar<T>::HybridAStar(int dubins_shot_interval, int dubins_shot_interval_decay, T grid_resolution, int grid_size, 
-        bool grid_2d_allow_diag_moves, T step_size, T max_lat_acc, T max_long_dec, T wheelbase, T rear_to_cg, 
-        int num_angle_bins, int num_actions, const std::vector<T>& steering, const std::vector<T>& curvature_weights) : 
+HybridAStar<T>::HybridAStar(int dubins_shot_interval, int dubins_shot_interval_decay, T grid_resolution, 
+        T obstacle_threshold, T obstacle_prob_min, T obstacle_prob_max, T obstacle_prob_free, 
+        int grid_size, bool grid_2d_allow_diag_moves, T step_size, T max_lat_acc, 
+        T max_long_dec, T wheelbase, T rear_to_cg, T apf_rep_constant, T apf_active_angle, 
+        int num_angle_bins, int num_actions, const std::vector<T>& steering, 
+        const std::vector<T>& curvature_weights) : 
         _dubins_shot_interval(dubins_shot_interval), 
         _dubins_shot_interval_decay(dubins_shot_interval_decay),
         _dubins_shot_successful(false),
         _goal_node(Node3D<T>()),
-        _grid(grid_resolution, grid_size, grid_2d_allow_diag_moves, step_size, max_lat_acc, max_long_dec, 
-                wheelbase, rear_to_cg, num_angle_bins, num_actions, steering, curvature_weights), 
+        _grid(grid_resolution, obstacle_threshold, obstacle_prob_min, obstacle_prob_max, 
+                obstacle_prob_free, grid_size, grid_2d_allow_diag_moves, step_size, 
+                max_lat_acc, max_long_dec, wheelbase, rear_to_cg, apf_rep_constant, 
+                apf_active_angle, num_angle_bins, num_actions, steering, curvature_weights), 
         _astar(_grid), 
         _dubins(wheelbase/(std::cos(std::atan2(rear_to_cg * tan_max<T>(steering), wheelbase)) * 
             tan_max<T>(steering)), step_size) {}
@@ -20,9 +25,23 @@ HybridAStar<T>::HybridAStar(int dubins_shot_interval, int dubins_shot_interval_d
 
 // Public member functions
 template <typename T>
-void HybridAStar<T>::update_obstacles(const std::vector<Obstacle<T>>& obstacles)
+void HybridAStar<T>::update_obstacles(const std::vector<Obstacle<T>>& obstacles, const std::vector<T>& confidence, 
+        const T apf_added_radius)
 {
-    _grid.update_obstacles(obstacles);
+    _grid.update_obstacles(obstacles, confidence, apf_added_radius);
+}
+
+template <typename T>
+void HybridAStar<T>::update_obstacles(const std::vector<std::pair<Vector2D<T>, Vector2D<T>>>& lines, 
+        const std::vector<T>& confidence, const T line_width)
+{
+    _grid.update_obstacles(lines, confidence, line_width);
+}
+
+template <typename T>
+void HybridAStar<T>::update_obstacles()
+{
+    _grid.update_obstacles();
 }
 
 template <typename T>
@@ -32,33 +51,18 @@ void HybridAStar<T>::reset()
 }
 
 template <typename T>
-std::pair<T, bool> HybridAStar<T>::find_path(const T vel_init, const Vector3D<T>& goal, const Vector3D<T>& start, 
-        const std::vector<Obstacle<T>>& obstacles, std::vector<Vector3D<T>>& path, std::vector<T>& curvature)
+void HybridAStar<T>::update_goal(const Vector3D<T>& goal, const Vector3D<T>& start)
 {
-    // update goal and start locations
-    Node3D<T> start_node = update_goal_start(goal, start);
-    start_node._vmin_sqr = vel_init * vel_init;
-    start_node._cost_f = std::numeric_limits<T>::max();
-    Vector3D<T> goal_grid = _goal_node._pose2D;
-
-    // update obstacle map
-    _grid.update_obstacles(obstacles);
-
-    // find path using Hybrid A*
-    std::pair<T, bool> cost_success_pair = hybrid_a_star_search(start_node);
-
-    // reconstruct path from goal to start
-    reconstruct_path(goal, goal_grid, path, curvature);
-
-    return cost_success_pair;
+    _goal_node = _grid.update_goal_heading(goal, start);
+    _astar.update_goal_node(*(_goal_node._base_node));
 }
 
 template <typename T>
-std::pair<T, bool> HybridAStar<T>::find_path(const T vel_init, const Vector3D<T>& goal, const Vector3D<T>& start, 
+std::pair<T, bool> HybridAStar<T>::find_path(const T vel_init, const Vector3D<T>& start, 
         std::vector<Vector3D<T>>& path, std::vector<T>& curvature)
 {
     // update goal and start locations
-    Node3D<T> start_node = update_goal_start(goal, start);
+    Node3D<T> start_node = update_start(start);
     start_node._vmin_sqr = vel_init * vel_init;
     start_node._cost_f = std::numeric_limits<T>::max();
     Vector3D<T> goal_grid = _goal_node._pose2D;
@@ -67,7 +71,7 @@ std::pair<T, bool> HybridAStar<T>::find_path(const T vel_init, const Vector3D<T>
     std::pair<T, bool> cost_success_pair = hybrid_a_star_search(start_node);
 
     // reconstruct path from goal to start
-    reconstruct_path(goal, goal_grid, path, curvature);
+    reconstruct_path(_grid.get_goal_location(), goal_grid, path, curvature);
 
     return cost_success_pair;
 }
@@ -80,7 +84,7 @@ std::pair<T, bool> HybridAStar<T>::hybrid_a_star_search(Node3D<T>& start_node)
     // Hybrid A* initialization
     int dubins_shot_counter = 0;
     int dubins_shot_current_interval = _dubins_shot_interval;
-    constexpr int dubins_shot_min_interval = 20;
+    constexpr int dubins_shot_min_interval = 50;
     bool dubins_shot_allowed = false;
     _dubins_shot_successful = false;
     _closed_set.clear();
@@ -183,11 +187,8 @@ std::pair<T, bool> HybridAStar<T>::hybrid_a_star_search(Node3D<T>& start_node)
 }
 
 template <typename T>
-Node3D<T> HybridAStar<T>::update_goal_start(const Vector3D<T>& goal, const Vector3D<T>& start)
+Node3D<T> HybridAStar<T>::update_start(const Vector3D<T>& start)
 {
-    _goal_node = _grid.update_goal_heading(goal, start);
-    _astar.update_goal_node(*(_goal_node._base_node));
-    
     return _grid.set_start_node(start);
 }
 
@@ -254,7 +255,7 @@ void HybridAStar<T>::choose_alternative_goal()
 {
     // loop over closed set and choose the best node as a new temporary goal
     int nodes_checked = 0;
-    constexpr int max_nodes_checked = 500;
+    constexpr int max_nodes_checked = 2000;
     auto it_best = _closed_set.begin();
     for (auto it = it_best; (it != _closed_set.end()) && (nodes_checked < max_nodes_checked); it++)
     {

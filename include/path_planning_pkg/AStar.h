@@ -19,7 +19,8 @@ namespace planning
     public:
         // Contructors
         #ifndef STORE_GRID_AS_REFERENCE
-        AStar(T grid_resolution, int grid_size, bool grid_allow_diag_moves=true);
+        AStar(T grid_resolution, T obstacle_threshold, T obstacle_prob_min, T obstacle_prob_max, 
+                T obstacle_prob_free, int grid_size, bool grid_allow_diag_moves=true);
         #else
         AStar(Grid2D<T>& grid);
         #endif
@@ -27,12 +28,14 @@ namespace planning
         // Public functions
         void update_goal_node(const Node2D<T>& goal_node);
         void update_goal_start(const Vector2D<T>& goal, const Vector2D<T>& start, Node2D<T>& start_node);
-        void update_obstacles(const std::vector<Obstacle<T>>& obstacles);
+        void update_obstacles(const std::vector<Obstacle<T>>& obstacles, const std::vector<T>& confidence);
+        void update_obstacles(const std::vector<std::pair<Vector2D<T>, Vector2D<T>>>& lines, 
+                const std::vector<T>& confidence, const T line_width);
+        void update_obstacles();
         void reset();
-        T find_path(const Vector2D<T>& goal, const Vector2D<T>& start, const std::vector<Obstacle<T>>& obstacles, 
-                std::vector<Vector2D<T>>& path);
-        T find_path(const Vector2D<T>& goal, const Vector2D<T>& start, const std::vector<Obstacle<T>>& obstacles,
-                bool get_cost_only=true);
+        const std::vector<std::vector<T>>& get_obstacles() const;
+        T find_path(const Vector2D<T>& goal, const Vector2D<T>& start, std::vector<Vector2D<T>>& path);
+        T find_path(const Vector2D<T>& goal, const Vector2D<T>& start, bool get_cost_only=true);
         T find_path(const int start_i, const int start_j);
 
     private:

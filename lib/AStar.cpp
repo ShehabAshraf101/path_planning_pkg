@@ -5,8 +5,11 @@ using namespace planning;
 // Constructors
 #ifndef STORE_GRID_AS_REFERENCE
 template <typename T>
-AStar<T>::AStar(T grid_resolution, int grid_size, bool grid_allow_diag_moves) :
-        _goal_node(0, 0), _grid(Grid2D<T>(grid_resolution, grid_size, grid_allow_diag_moves)),
+AStar<T>::AStar(T grid_resolution, T obstacle_threshold, T obstacle_prob_min, T obstacle_prob_max, 
+        T obstacle_prob_free, int grid_size, bool grid_allow_diag_moves) :
+        _goal_node(0, 0), 
+        _grid(Grid2D<T>(grid_resolution, obstacle_threshold, obstacle_prob_min, obstacle_prob_max, 
+                obstacle_prob_free, grid_size, grid_allow_diag_moves)),
         _visted(grid_size, std::vector<bool>(grid_size, false)) {}
 
 #else
@@ -31,29 +34,45 @@ void AStar<T>::update_goal_start(const Vector2D<T>& goal, const Vector2D<T>& sta
 }
 
 template <typename T>
-void AStar<T>::update_obstacles(const std::vector<Obstacle<T>>& obstacles)
+void AStar<T>::update_obstacles(const std::vector<Obstacle<T>>& obstacles, const std::vector<T>& confidence)
 {
-    _grid.update_obstacles(obstacles);
+    _grid.update_obstacles(obstacles, confidence);
+}
+
+template <typename T>
+void AStar<T>::update_obstacles(const std::vector<std::pair<Vector2D<T>, Vector2D<T>>>& lines, 
+        const std::vector<T>& confidence, const T line_width)
+{
+    _grid.update_obstacles(lines, confidence, line_width);
+}
+
+template <typename T>
+void AStar<T>::update_obstacles()
+{
+    _grid.update_obstacles();
 }
 
 template <typename T>
 void AStar<T>::reset()
 {
     _grid.clear_obstacles();
-    for (auto& row : _visted)
-    {
-        std::fill(row.begin(), row.end(), false);
-    }
+    int grid_size = _grid.get_grid_size();
+    std::fill(_visted.begin(), _visted.end(), std::vector<bool>(grid_size, false)); 
+}
+
+template <typename T>
+const std::vector<std::vector<T>>& AStar<T>::get_obstacles() const
+{
+    return _grid.get_obstacle_map();
 }
 
 // Reconstructs path and returns actual cost to reach goal (cost = std::numeric_limit<T>::max() if no path is found)
 // Note: reconstructed path is reversed starting at goal and ending at start (use reverse iterator)
 template <typename T>
-T AStar<T>::find_path(const Vector2D<T>& goal, const Vector2D<T>& start, const std::vector<Obstacle<T>>& obstacles, 
-        std::vector<Vector2D<T>>& path)
+T AStar<T>::find_path(const Vector2D<T>& goal, const Vector2D<T>& start, std::vector<Vector2D<T>>& path)
 {
     // compute accumulated cost of reaching goal from start using A*
-    T accumulated_cost = find_path(goal, start, obstacles, false);
+    T accumulated_cost = find_path(goal, start, false);
 
     // reconstruct path if one exists
     if (accumulated_cost < std::numeric_limits<T>::max())
@@ -66,13 +85,11 @@ T AStar<T>::find_path(const Vector2D<T>& goal, const Vector2D<T>& start, const s
 
 // Returns actual cost to reach goal only (cost = std::numeric_limit<T>::max() if no path is found)
 template <typename T>
-T AStar<T>::find_path(const Vector2D<T>& goal, const Vector2D<T>& start, const std::vector<Obstacle<T>>& obstacles,
-        bool get_cost_only)
+T AStar<T>::find_path(const Vector2D<T>& goal, const Vector2D<T>& start, bool get_cost_only)
 {
     // update goal and start locations as well as obstacles
     _goal_node = _grid.update_goal_heading(goal, start);
     Node2D<T> start_node = _grid.set_start_node(start);
-    _grid.update_obstacles(obstacles);
 
     // return accumulated cost of reaching goal from start found using A*
     return a_star_search(start_node, get_cost_only);
@@ -176,11 +193,15 @@ void AStar<T>::reconstruct_path(const Vector2D<T>& goal, std::vector<Vector2D<T>
     T grid_heading = _grid.get_grid_heading();
     const Node2D<T>* current_node_ptr = _goal_node._prev;
     path.push_back(goal);
+    // const Node2D<T>* current_node_ptr = &_goal_node;
+
     while (current_node_ptr != nullptr)
     {
         Vector2D<T> rel_pos((current_node_ptr->_posd._x - _goal_node._posd._x) * grid_resolution,
                     (current_node_ptr->_posd._y - _goal_node._posd._y) * grid_resolution);
         path.push_back(rel_pos.get_rotated_vector(-grid_heading) + goal);
+        // Vector2D<T> pos(current_node_ptr->_posd._x, current_node_ptr->_posd._y);
+        // path.push_back(pos);
         current_node_ptr = current_node_ptr->_prev;
     }
 }

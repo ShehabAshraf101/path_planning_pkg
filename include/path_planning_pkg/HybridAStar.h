@@ -30,22 +30,28 @@ namespace planning
     
     public:
         // Contructors
-        HybridAStar(int dubins_shot_interval, int dubins_shot_interval_decay, T grid_resolution, int grid_size, 
-                bool grid_2d_allow_diag_moves, T step_size, T max_lat_acc, T max_long_dec, T wheelbase, T rear_to_cg, 
-                int num_angle_bins, int num_actions, const std::vector<T>& steering, const std::vector<T>& curvature_weights);
+        HybridAStar(int dubins_shot_interval, int dubins_shot_interval_decay, T grid_resolution, 
+                T obstacle_threshold, T obstacle_prob_min, T obstacle_prob_max, T obstacle_prob_free, 
+                int grid_size, bool grid_2d_allow_diag_moves, T step_size, T max_lat_acc, 
+                T max_long_dec, T wheelbase, T rear_to_cg, T apf_rep_constant, T apf_active_angle, 
+                int num_angle_bins, int num_actions, const std::vector<T>& steering, 
+                const std::vector<T>& curvature_weights);
 
         // Public member functions
-        void update_obstacles(const std::vector<Obstacle<T>>& obstacles);
+        void update_obstacles(const std::vector<Obstacle<T>>& obstacles, const std::vector<T>& confidence, 
+                const T apf_added_radius);
+        void update_obstacles(const std::vector<std::pair<Vector2D<T>, Vector2D<T>>>& lines, 
+                const std::vector<T>& confidence, const T line_width);
+        void update_obstacles();
         void reset();
-        std::pair<T, bool> find_path(const T vel_init, const Vector3D<T>& goal, const Vector3D<T>& start, 
-                const std::vector<Obstacle<T>>& obstacles, std::vector<Vector3D<T>>& path, std::vector<T>& curvature);
-        std::pair<T, bool> find_path(const T vel_init, const Vector3D<T>& goal, const Vector3D<T>& start, 
+        void update_goal(const Vector3D<T>& goal, const Vector3D<T>& start);
+        std::pair<T, bool> find_path(const T vel_init, const Vector3D<T>& start, 
                 std::vector<Vector3D<T>>& path, std::vector<T>& curvature);
-
+        
     private:
         // Private member functions
         std::pair<T, bool> hybrid_a_star_search(Node3D<T>& start_node);
-        Node3D<T> update_goal_start(const Vector3D<T>& goal, const Vector3D<T>& start);
+        Node3D<T> update_start(const Vector3D<T>& start);
         void reconstruct_path(const Vector3D<T>& goal, const Vector3D<T>& goal_grid, std::vector<Vector3D<T>>& path, 
                 std::vector<T>& curvature) const;
         void choose_alternative_goal();

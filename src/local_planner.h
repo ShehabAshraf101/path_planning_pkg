@@ -55,14 +55,14 @@ public:
 
 protected:
     // Protected class members
-    int _lane_sampling_size;                                    // Number of points by which the lanes are sampled into rectangular obstacles
-                                                                // i.e. each N points are clustered together as an obstacle
-    T _vehicle_length_2;                                        // Vehicle's length/2 (m) + tolerance to add to dimensions of obstacles
+    T _vehicle_length_2;                                        // Vehicle's length/2 (m) + tolerance to add to dimensions of objects
+    T _vehicle_width_2;                                         // Vehicle's width/2 (m) + tolerance to add to dimensions of lane lines 
     T _velocity;                                                // Latest estimate of the vehicle's velocity
+    T _confidence_object;                                       // Confidence in object map prediction (0 = certainly free, 0.5 = no knowledge, 1.0 = certainly occupied)
+    T _confidence_lane;                                         // Confidence in lane map prediction (same exactly as above)
+    T _apf_object_added_radius;                                 // Radius (m) to add to obstacles for calculating field intensity from the APF
     Vector3D<T> _pose;                                          // Latest estimate of the vehicle's pose (pose2D)
     std::pair<Vector3D<T>, bool> _waypoint_pair;                // Next waypoint (pose2D) and flag to decide if vehicle should stop at waypoint
-    std::vector<Obstacle<T>> _object_obstacles;                 // Vector of all objects to be added to the grid before search begins
-    std::vector<Obstacle<T>> _boundary_obstacles;               // Vector of all piecewise obstacles representing the boundaries of drivable area 
     std::unique_ptr<HybridAStar<T>> _hybrid_astar;              // Path planner for kinematically feasbile obstacle-free paths using Hybrid A*
     std::unique_ptr<VelocityGenerator<T>> _velocity_generator;  // Responsible for generating a velocity profile given a path and vehicle's limits
 
@@ -70,8 +70,8 @@ protected:
     ros::Subscriber _odom_sub;                                  // ROS subscriber for the odometry msg holding the vehicle's state
     ros::Subscriber _waypoint_sub;                              // ROS subscriber for custom waypoint msg
     ros::Subscriber _object_sub;                                // ROS subscriber for objects detected by camera
-    ros::Subscriber _lane_sub;                                  // ROS subscriber for Float32 or Float64MultiArray msg holding the coordinates
-                                                                // of the left and right road boundaries
+    ros::Subscriber _lane_sub;                                  // ROS subscriber for Float32MultiArray or Float64MultiArray msg holding the 
+                                                                // coordinates of the left and right road boundaries
 };
 
 
@@ -97,7 +97,7 @@ public:
 
     // Public member functions (type-specific implementations)
     void callback_lane(const std_msgs::Float32MultiArray::ConstPtr &msg);
-    void publish_trajectory(std::vector<Vector3D<float>> &path, std::vector<float> &velocity);
+    void publish_trajectory(const std::vector<Vector3D<float>> &path, const std::vector<float> &velocity) const;
 };
 
 
@@ -112,7 +112,7 @@ public:
 
     // Public member functions (type-specific implementations)
     void callback_lane(const std_msgs::Float64MultiArray::ConstPtr &msg);
-    void publish_trajectory(std::vector<Vector3D<double>> &path, std::vector<double> &velocity);
+    void publish_trajectory(const std::vector<Vector3D<double>> &path, const std::vector<double> &velocity) const;
 };
 
 #endif

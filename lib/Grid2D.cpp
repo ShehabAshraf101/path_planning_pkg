@@ -4,12 +4,20 @@ using namespace planning;
 
 // Constructors
 template <typename T>
-Grid2D<T>::Grid2D(T resolution, int grid_size, Vector2D<T> goal, Vector2D<T> start, bool allow_diag_moves) :
-        _grid_heading(std::atan2(goal._y - start._y, goal._x - start._x)), _resolution(resolution),
-        _grid_size(grid_size), _grid_size_2(static_cast<int>(std::round(grid_size * 0.5))),
-        _grid_size_4_5(static_cast<int>(std::round(grid_size * 0.8))), _goal_location(goal),
+Grid2D<T>::Grid2D(T resolution, T obstacle_threshold, T obstacle_prob_min, T obstacle_prob_max, 
+        T obstacle_prob_free, int grid_size, Vector2D<T> goal, Vector2D<T> start, bool allow_diag_moves) :
+        _grid_heading(std::atan2(goal._y - start._y, goal._x - start._x)), 
+        _resolution(resolution),
+        _obstacle_log_threshold(std::log(obstacle_threshold/(1.0 - obstacle_threshold))),
+        _obstacle_log_prob_min(std::log(obstacle_prob_min/(1.0 - obstacle_prob_min))),
+        _obstacle_log_prob_max(std::log(obstacle_prob_max/(1.0 - obstacle_prob_max))),
+        _obstacle_log_prob_free(std::log(obstacle_prob_free/(1.0 - obstacle_prob_free))),
+        _grid_size(grid_size), 
+        _grid_size_2(static_cast<int>(std::round(grid_size * 0.5))),
+        _grid_size_4_5(static_cast<int>(std::round(grid_size * 0.8))), 
+        _goal_location(goal),
         _node_map(grid_size, std::vector<Node2D<T>>(grid_size, Node2D<T>(0, 0))),
-        _obstacle_map(grid_size, std::vector<bool>(grid_size, false))
+        _obstacle_map(grid_size, std::vector<T>(grid_size, static_cast<T>(0.0)))
 {
     // loop over grid to initialize nodes
     for (int i = 0; i < _grid_size; i++)
@@ -54,24 +62,25 @@ Grid2D<T>::Grid2D(T resolution, int grid_size, Vector2D<T> goal, Vector2D<T> sta
 }
 
 template <typename T>
-Grid2D<T>::Grid2D(T resolution, int grid_size, bool allow_diag_moves) :
-        Grid2D(resolution, grid_size, Vector2D<T>(), Vector2D<T>(), allow_diag_moves) {}
+Grid2D<T>::Grid2D(T resolution, T obstacle_threshold, T obstacle_log_prob_min, T obstacle_log_prob_max,
+        T obstacle_prob_free, int grid_size, bool allow_diag_moves) :
+        Grid2D(resolution, obstacle_threshold, obstacle_log_prob_min, obstacle_log_prob_max, 
+                obstacle_prob_free, grid_size, Vector2D<T>(), Vector2D<T>(), allow_diag_moves) {}
 
 // Public functions
 template <typename T>
 void Grid2D<T>::get_neighbors(const int xd, const int yd, std::vector<std::pair<Node2D<T>*, T>>& neighbors)
 {
     // apply each action to get neighbor if valid (in bounds and not obstacle)
-    int valid_neighbors = 0;
-    int num_actions = _actions.size();
-    neighbors.resize(num_actions);
-    for (int k = 0; k < num_actions; k++)
+    std::size_t valid_neighbors = 0;
+    neighbors.resize(_actions.size());
+    for (std::size_t k = 0; k < _actions.size(); k++)
     {
         int i = xd + _actions[k].first;
         int j = yd + _actions[k].second;
         if ((i > -1) && (i < _grid_size) && (j > -1) && (j < _grid_size))
         {
-            if (!_obstacle_map[i][j])
+            if (_obstacle_map[i][j] < _obstacle_log_threshold)
             {
                 neighbors[valid_neighbors].first = &_node_map[i][j];
                 neighbors[valid_neighbors].second = _actions_cost[k];
@@ -80,43 +89,118 @@ void Grid2D<T>::get_neighbors(const int xd, const int yd, std::vector<std::pair<
         }
     }
 
-    if (valid_neighbors != num_actions)
+    if (valid_neighbors != _actions.size())
     {
         neighbors.resize(valid_neighbors);
     }
 }
 
 template <typename T>
-void Grid2D<T>::update_obstacles(const std::vector<Obstacle<T>>& obstacles)
+void Grid2D<T>::update_obstacles(const std::vector<Obstacle<T>>& obstacles, const std::vector<T>& confidence)
 {
-    for (const auto& obstacle : obstacles)
+    // define a lambda function to get the indices of a location on the map
+    auto get_indices = [this] (const T& position_x, const T& position_y) -> std::pair<int, int>
     {
-        constexpr int added_size_2 = 2;
-        Vector2D<T> rel_position(obstacle._pose2D._x - obstacle._dimensions._x/2 - _goal_location._x, 
-                obstacle._pose2D._y - obstacle._dimensions._y/2 - _goal_location._y);
-        rel_position.rotate_vector(_grid_heading);
-        int i_bl = static_cast<int>(rel_position._x/_resolution) + _grid_size_4_5 - added_size_2; // Index of bottom left corner
-        int j_bl = static_cast<int>(rel_position._y/_resolution) + _grid_size_2 - added_size_2;  // Index of bottom left corner
-        int end_i = static_cast<int>(std::ceil(obstacle._dimensions._x/_resolution)) + added_size_2;
-        int end_j = static_cast<int>(std::ceil(obstacle._dimensions._y/_resolution)) + added_size_2;
+        Vector2D<T> position(position_x - _goal_location._x, position_y - _goal_location._y);
+        position.rotate_vector(_grid_heading);
+        
+        return std::pair<int, int>(static_cast<int>(std::round(position._x/_resolution) + _grid_size_4_5),
+                static_cast<int>(std::round(position._y/_resolution) + _grid_size_2));
+    };
+
+    for (std::size_t k = 0; k < obstacles.size(); k++)
+    { 
+        int start_i, end_i, start_j, end_j;
+        std::pair<int, int> bl_indices = get_indices(obstacles[k]._pose2D._x - obstacles[k]._dimensions._x/2, 
+                obstacles[k]._pose2D._y - obstacles[k]._dimensions._y/2);
+        start_i = bl_indices.first;
+        start_j = bl_indices.second; 
+        end_i = static_cast<int>(std::ceil(obstacles[k]._dimensions._x/_resolution));
+        end_j = static_cast<int>(std::ceil(obstacles[k]._dimensions._y/_resolution));
 
         // discretize obstacles into square cells
-        for (int i = 0; i < end_i; i++)
+        T log_confidence = std::log(confidence[k]/(1.0 - confidence[k]));
+        for (int i = 0; i < 2 * end_i; i++)
         {
-            // T dx = i;
-            for (int j = 0; j < end_j; j++)
+            for (int j = 0; j < 2 * end_j; j++)
             {
-                Vector2D<T> offset(i, j);
+                Vector2D<T> offset(i * 0.5, j * 0.5);
                 offset.rotate_vector(_grid_heading);
-                int i_p = i_bl + static_cast<int>(std::round(offset._x));
-                int j_p = j_bl + static_cast<int>(std::round(offset._y));
+                int i_p = start_i + static_cast<int>(std::round(offset._x));
+                int j_p = start_j + static_cast<int>(std::round(offset._y));
                 if((i_p > -1) && (i_p < _grid_size) && (j_p > -1) && (j_p < _grid_size))
                 {
-                    _obstacle_map[i_p][j_p] = true;
+                    _obstacle_map[i_p][j_p] += log_confidence - _obstacle_log_prob_free;
+                    _obstacle_map[i_p][j_p] = std::max(std::min(_obstacle_map[i_p][j_p], _obstacle_log_prob_max), _obstacle_log_prob_min);
                 }
             }
         }
     }
+}
+
+template <typename T>
+void Grid2D<T>::update_obstacles(const std::vector<std::pair<Vector2D<T>, Vector2D<T>>>& lines, 
+        const std::vector<T>& confidence, const T line_width)
+{
+    for (std::size_t k = 0; k < lines.size(); k++)
+    {
+        Vector2D<T> start_point = (lines[k].first - _goal_location).get_rotated_vector(_grid_heading);
+        Vector2D<T> end_point = (lines[k].second - _goal_location).get_rotated_vector(_grid_heading);
+        Vector2D<T> delta(end_point._x - start_point._x, end_point._y - start_point._y);
+        T line_length = std::hypot(delta._x, delta._y);
+        Vector2D<T> delta_normal = Vector2D<T>(-delta._y, delta._x)/line_length; 
+        T prog_length = 0;
+        
+        // discretize line along its length
+        T log_confidence = std::log(confidence[k]/(1.0 - confidence[k]));
+        while (prog_length <= 1.0)
+        {
+            // discretize line along its width
+            T prog_width = 0;
+            Vector2D<T> intercept = start_point + delta * prog_length;
+            while (prog_width <= line_width)
+            {
+                Vector2D<T> point1 = intercept + delta_normal * prog_width;
+                Vector2D<T> point2 = intercept - delta_normal * prog_width;
+                int i1 = static_cast<int>(std::round(point1._x/_resolution)) + _grid_size_4_5;
+                int i2 = static_cast<int>(std::round(point2._x/_resolution)) + _grid_size_4_5;
+                int j1 = static_cast<int>(std::round(point1._y/_resolution)) + _grid_size_2;
+                int j2 = static_cast<int>(std::round(point2._y/_resolution)) + _grid_size_2;
+
+                // update points if inside grid
+                if((i1 > -1) && (i1 < _grid_size) && (j1 > -1) && (j1 < _grid_size))
+                {
+                    _obstacle_map[i1][j1] += log_confidence - _obstacle_log_prob_free;
+                    _obstacle_map[i1][j1] = std::max(std::min(_obstacle_map[i1][j1], _obstacle_log_prob_max), _obstacle_log_prob_min);
+                }
+                if((i2 > -1) && (i2 < _grid_size) && (j2 > -1) && (j2 < _grid_size))
+                {
+                    _obstacle_map[i2][j2] += log_confidence - _obstacle_log_prob_free;
+                    _obstacle_map[i2][j2] = std::max(std::min(_obstacle_map[i2][j2], _obstacle_log_prob_max), _obstacle_log_prob_min);
+                }
+
+                // update progess along width
+                prog_width += _resolution;
+            }
+
+            // update progess along length
+            prog_length += _resolution/line_length;
+        }
+    }
+}
+
+template <typename T>
+void Grid2D<T>::update_obstacles()
+{
+    // update the status of all obstacles as being free cells
+    std::for_each(_obstacle_map.begin(), _obstacle_map.end(), [this] (std::vector<T>& row)
+    {
+        std::for_each(row.begin(), row.end(), [this] (T& log_probability)
+        {
+            log_probability += _obstacle_log_prob_free;
+            log_probability = std::max(std::min(log_probability, _obstacle_log_prob_max), _obstacle_log_prob_min);
+        });
+    });
 }
 
 // Erases the status of obstacles  
@@ -124,10 +208,7 @@ template <typename T>
 void Grid2D<T>::clear_obstacles()
 {
     // reset obstacle status
-    for (auto& row : _obstacle_map)
-    {
-        std::fill(row.begin(), row.end(), false);
-    }
+    std::fill(_obstacle_map.begin(), _obstacle_map.end(), std::vector<T>(_grid_size, 0.0));
 }
 
 template <typename T>
@@ -163,6 +244,12 @@ template <typename T>
 int Grid2D<T>::get_grid_size() const
 {
     return _grid_size;
+}
+
+template <typename T>
+const std::vector<std::vector<T>>& Grid2D<T>::get_obstacle_map() const
+{
+    return _obstacle_map;
 }
 
 template <typename T>

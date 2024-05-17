@@ -8,12 +8,12 @@
     
     <arg name="pose_topic_name" default="/odom" />
     <arg name="object_topic_name" default="/yolo_objects" />
-    <arg name="lane_topic_name" default="/lane_detection" />
+    <arg name="lane_topic_name" default="/lane_detection/lanes" />
     
-    <arg name="vehicle_length" default="2.6" />
-    <arg name="vehicle_width" default="1.6" />
+    <arg name="vehicle_length" default="4.0" />
+    <arg name="vehicle_width" default="2.0" />
     <arg name="wheelbase" default="2.269" />
-    <arg name="rear_to_cg" default="1.18" />
+    <arg name="rear_to_cg" default="1.135" />
 
     <!-- Launch Offline Planner Node -->
     <include file="$(find path_planning_pkg)/launch/offline_planner.launch" if="$(eval use_online_planner == false)" >

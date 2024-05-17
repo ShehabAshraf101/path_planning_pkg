@@ -6,9 +6,12 @@ template <typename T>
 // Contructors
 VelocityGenerator<T>::VelocityGenerator(T max_velocity, T coast_velocity, T max_lat_acc, 
         T max_long_acc, T max_long_dec) :
-        _max_velocity(max_velocity), _coast_velocity(coast_velocity), 
-        _max_lat_acc(max_lat_acc), _max_lat_acc_sqr(max_lat_acc * max_lat_acc),
-        _max_long_acc(max_long_acc), _max_long_dec(max_long_dec) {}
+        _max_velocity(max_velocity), 
+        _coast_velocity(coast_velocity), 
+        _max_lat_acc(max_lat_acc), 
+        _max_lat_acc_sqr(max_lat_acc * max_lat_acc),
+        _max_long_acc(max_long_acc), 
+        _max_long_dec(max_long_dec) {}
 
 
 // Public member fuctions

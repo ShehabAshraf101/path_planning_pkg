@@ -86,7 +86,7 @@ class BehavioralPlanner:
         self.final_waypoint = False
 
         # Publisher for waypoints
-        self.waypoint_pub = rospy.Publisher('/behavioral_planner/waypoint', Waypoint, queue_size=1)
+        self.waypoint_pub = rospy.Publisher('/behavioral_planner/waypoint', Waypoint, queue_size=1, latch=True)
 
         # Odometry subscriber
         rospy.Subscriber(pose_topic_name, Odometry, self.odom_callback)

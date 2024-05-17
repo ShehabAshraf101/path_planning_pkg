@@ -5,8 +5,11 @@ using namespace planning;
 // Constructors
 template <typename T>
 Node2D<T>::Node2D(int xd, int yd, T cost_g, T cost_h, const Node2D<T>* prev) :
-        _posd(xd, yd), _cost_g(cost_g), _cost_h(cost_h),
-        _cost_f(cost_g + cost_h), _prev(prev) {}
+        _posd(xd, yd), 
+        _cost_g(cost_g), 
+        _cost_h(cost_h),
+        _cost_f(cost_g + cost_h), 
+        _prev(prev) {}
 
 template <typename T>
 Node2D<T>::Node2D(int xd, int yd) : 

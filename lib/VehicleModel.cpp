@@ -6,10 +6,15 @@ using namespace planning;
 template <typename T>
 VehicleModel<T>::VehicleModel(T ts, T max_lat_acc, T max_long_dec, T wheelbase, T rear_to_cg, int num_angle_bins, 
         int num_actions, const std::vector<T>& steering, const std::vector<T>& curvature_weights) :
-        _ts(ts), _max_lat_acc(max_lat_acc), _max_lat_acc_sqr(max_lat_acc * max_lat_acc), 
-        _max_long_dec(max_long_dec), _precision(2 * M_PI/num_angle_bins), 
-        _num_actions(num_actions), _abs_curvatures(steering.size()), 
-        _actions_cost(steering.size()), _offset_heading(steering.size()), 
+        _ts(ts), 
+        _max_lat_acc(max_lat_acc), 
+        _max_lat_acc_sqr(max_lat_acc * max_lat_acc), 
+        _max_long_dec(max_long_dec), 
+        _precision(2 * M_PI/num_angle_bins), 
+        _num_actions(num_actions), 
+        _abs_curvatures(steering.size()), 
+        _actions_cost(steering.size()), 
+        _offset_heading(steering.size()), 
         _offset_xy(steering.size(), std::vector<Vector2D<T>>(num_angle_bins, Vector2D<T>()))
 {
     // calculate sideslip angle (beta) and curvature (signed) for each steering input
@@ -124,9 +129,6 @@ std::pair<bool, Node3D<T>> VehicleModel<T>::simulate_action(const Node3D<T>& nod
     Vector3D<T> pose2D(node._pose2D._x + _offset_xy[action_index][node._angle_bin]._x,
                 node._pose2D._y + _offset_xy[action_index][node._angle_bin]._y,
                 wrap_pi(node._pose2D._heading + _offset_heading[action_index]));
-    // Node3D<T> node_new(pose2D, node._cost_g + _actions_cost[action_index], vmin_sqr, action_index,
-    //                 get_heading_index(pose2D._heading, _precision), &node);
-    // result = node_new;
 
     return std::pair<bool, Node3D<T>>(std::piecewise_construct, std::forward_as_tuple(true), 
             std::forward_as_tuple(pose2D, node._cost_g + _actions_cost[action_index], vmin_sqr, action_index,
