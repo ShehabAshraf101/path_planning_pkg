@@ -128,6 +128,7 @@ LocalPlannerBase<T>::LocalPlannerBase(ros::NodeHandle& nh)
     // Initialize class members (Non-ROS)
     _vehicle_length_2 = vehicle_length/2;
     _vehicle_width_2 = vehicle_width/2;
+    _vehicle_cg_to_front = rear_to_cg;
     _velocity = 0;
     _waypoint_received = false;
     _pose = {0, 0, 0};
@@ -143,8 +144,8 @@ LocalPlannerBase<T>::LocalPlannerBase(ros::NodeHandle& nh)
 
     // Initialize ROS publishers and subscribers
     _odom_sub       = nh.subscribe(odom_topic_name, 0, &LocalPlannerBase::callback_odom, this);
-    _waypoint_sub   = nh.subscribe(waypoint_topic_name, 1, &LocalPlannerBase::callback_waypoint, this);
-    // add object subscriber when available
+    _waypoint_sub   = nh.subscribe(waypoint_topic_name, 0, &LocalPlannerBase::callback_waypoint, this);
+    _object_sub     = nh.subscribe(object_topic_name, 0, &LocalPlannerBase::callback_objects, this);
 }
 
 
@@ -154,7 +155,9 @@ void LocalPlannerBase<T>::callback_odom(const nav_msgs::Odometry::ConstPtr &msg)
 {
     // store pose2D and velocity
     Vector3D<T> pose = pose_to_vector3d<T>(msg->pose.pose);
-    _pose = {pose._y, -pose._x, pose._heading};
+    _pose = {pose._y, 
+            -pose._x, 
+            pose._heading};
     // std::cout << _pose._x << ", " << _pose._y << ", " << _pose._heading << "\n";   
     _velocity = std::hypot(msg->twist.twist.linear.x, msg->twist.twist.linear.y);
 }
@@ -165,8 +168,8 @@ void LocalPlannerBase<T>::callback_waypoint(const path_planning_pkg::Waypoint::C
     // store waypoint and boolean flag pair (true = stop at waypoint)
     _waypoint_pair.first = pose_to_vector3d<T>(msg->pose);
     _waypoint_pair.second = msg->stop_at_waypoint;
-    // std::cout << _waypoint_pair.first._x << ", " << _waypoint_pair.first._y 
-    //         << ", " << _waypoint_pair.first._heading << "\n";   
+    std::cout << _waypoint_pair.first._x << ", " << _waypoint_pair.first._y 
+            << ", " << _waypoint_pair.first._heading << "\n";   
 
     // update goal for hybrid A* and reset the algorithm's map
     _hybrid_astar->reset();
@@ -176,8 +179,35 @@ void LocalPlannerBase<T>::callback_waypoint(const path_planning_pkg::Waypoint::C
     _waypoint_received = true;
 }
 
-// add callback for object detector when msg is available
+template <typename T>
+void LocalPlannerBase<T>::callback_objects(const perception_pkg::bounding_box_array::ConstPtr &msg)
+{
+    // initialize the expected object class names
+    const std::vector<std::string> class_names({"car", "plastic lane barrier", "person"});
 
+    // initialize vectors to store the obstacles and their confidence values
+    std::vector<Obstacle<T>> obstacles;
+    std::vector<T> confidence;
+    obstacles.reserve(msg->bbs_array.size());
+    confidence.reserve(msg->bbs_array.size());
+
+    // loop over obstacles to copy their contents
+    for (const auto& obstacle : msg->bbs_array)
+    {
+        T obstacle_dim = std::max(obstacle.length, obstacle.width);
+        
+        // handle barriers and vehicles by enlarging size using the vehicle's length
+        if ((obstacle.class_name == class_names[0]) || (obstacle.class_name == class_names[1]))
+        {
+            obstacle_dim += _vehicle_length_2;
+            obstacles.emplace_back(obstacle.centroid.x, obstacle.centroid.y, obstacle_dim, obstacle_dim);
+            confidence.emplace_back(static_cast<T>(0.5) + obstacle.confidence/2);
+        }
+    }
+
+    // update map using obstacles
+    // _hybrid_astar->update_obstacles(obstacles, std::vector<T>(obstacles.size(), _confidence_object), _apf_object_added_radius);
+}
 
 /* Define class specialization of local planner for float datatype */
 

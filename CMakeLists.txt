@@ -123,6 +123,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS} 
 )
 include_directories(include/path_planning_pkg)
+include_directories(../devel/include/)
 
 add_compile_options(-Wall -O3 -DSTORE_GRID_AS_REFERENCE)
 

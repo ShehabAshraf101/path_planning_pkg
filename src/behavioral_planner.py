@@ -185,10 +185,10 @@ class BehavioralPlanner:
             
             if self.waypoint_index == (self.global_plan.shape[0] - 1):
                 next_heading = calculate_bearing(self.global_plan[self.waypoint_index - 1], midpoint)
-            elif np.array_equal(midpoint, self.global_plan[self.waypoint_index]):
-                next_heading = calculate_bearing(midpoint, self.global_plan[self.waypoint_index + 1])
-            else:
-                next_heading = calculate_bearing(midpoint, self.global_plan[self.waypoint_index])
+            else:# np.array_equal(midpoint, self.global_plan[self.waypoint_index]):
+                next_heading = calculate_bearing(self.global_plan[self.waypoint_index - 1], midpoint)
+            # else:
+            #     next_heading = calculate_bearing(midpoint, self.global_plan[self.waypoint_index])
             next_heading = normalize_angle(next_heading - np.pi/2) 
 
             # print(np.rad2deg(next_heading))

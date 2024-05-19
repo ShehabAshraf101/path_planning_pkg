@@ -17,6 +17,8 @@
 #include "std_msgs/Float64MultiArray.h"
 #include "nav_msgs/Odometry.h"
 #include "path_planning_pkg/Waypoint.h"
+#include "perception_pkg/bounding_box.h"
+#include "perception_pkg/bounding_box_array.h"
 
 using namespace planning;
 
@@ -51,12 +53,13 @@ public:
     // Public member fuctions
     void callback_odom(const nav_msgs::Odometry::ConstPtr &msg);
     void callback_waypoint(const path_planning_pkg::Waypoint::ConstPtr &msg);
-    // add callback for object detector when msg is available
+    void callback_objects(const perception_pkg::bounding_box_array::ConstPtr &msg);
 
 protected:
     // Protected class members
     T _vehicle_length_2;                                        // Vehicle's length/2 (m) + tolerance to add to dimensions of objects
-    T _vehicle_width_2;                                         // Vehicle's width/2 (m) + tolerance to add to dimensions of lane lines 
+    T _vehicle_width_2;                                         // Vehicle's width/2 (m) + tolerance to add to dimensions of lane lines
+    T _vehicle_cg_to_front;                                     // The distance from the vehicle's CG to the center of its front axle 
     T _velocity;                                                // Latest estimate of the vehicle's velocity
     T _confidence_object;                                       // Confidence in object map prediction (0 = certainly free, 0.5 = no knowledge, 1.0 = certainly occupied)
     T _confidence_lane;                                         // Confidence in lane map prediction (same exactly as above)

@@ -7,7 +7,7 @@
     <arg name="publish_heading" default="true" /> <!-- Set to true if using closed-loop controlelr -->
     
     <arg name="pose_topic_name" default="/odom" />
-    <arg name="object_topic_name" default="/yolo_objects" />
+    <arg name="object_topic_name" default="/object_detection/bounding_boxes" />
     <arg name="lane_topic_name" default="/lane_detection/lanes" />
     
     <arg name="vehicle_length" default="4.0" />
