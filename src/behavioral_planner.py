@@ -102,7 +102,7 @@ class BehavioralPlanner:
         rospy.Subscriber(pose_topic_name, Odometry, self.odom_callback)
 
         # Subscriber for object detection
-        rospy.Subscriber(object_topic_name, Image, self.object_detection_callback)
+        # rospy.Subscriber(object_topic_name, Image, self.object_detection_callback)
 
         # Subscriber for global plan
         rospy.Subscriber(global_plan_topic_name, Float32MultiArray, self.global_plan_callback)
@@ -184,11 +184,11 @@ class BehavioralPlanner:
             waypoint_msg.stop_at_waypoint = True if np.array_equal(midpoint, self.global_plan[-1]) else False 
             
             if self.waypoint_index == (self.global_plan.shape[0] - 1):
-                next_heading = calculate_bearing(self.global_plan[self.waypoint_index - 1], midpoint)
-            else:# np.array_equal(midpoint, self.global_plan[self.waypoint_index]):
-                next_heading = calculate_bearing(self.global_plan[self.waypoint_index - 1], midpoint)
-            # else:
-            #     next_heading = calculate_bearing(midpoint, self.global_plan[self.waypoint_index])
+                next_heading = calculate_bearing(self.global_plan[self.waypoint_index - 1], self.global_plan[self.waypoint_index])
+            elif np.array_equal(midpoint, self.global_plan[self.waypoint_index]):
+                next_heading = calculate_bearing(midpoint, self.global_plan[self.waypoint_index + 1])
+            else:
+                next_heading = calculate_bearing(midpoint, self.global_plan[self.waypoint_index])
             next_heading = normalize_angle(next_heading - np.pi/2) 
 
             # print(np.rad2deg(next_heading))
