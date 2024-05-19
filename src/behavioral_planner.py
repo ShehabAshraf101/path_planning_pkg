@@ -6,7 +6,7 @@ from std_msgs.msg import Float32MultiArray
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Image
 from path_planning_pkg.msg import Waypoint
-from tf.transformations import quaternion_from_euler
+from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
 # Define enum for different states
 class State:
@@ -31,6 +31,15 @@ def euclidean_distance(point1, point2):
 def get_midpoint(point1, point2):
     return np.array([(point1[0] + point2[0])/2, (point1[1] + point2[1])/2])
 
+def normalize_angle(angle):
+    angle = np.fmod(angle, 2*np.pi)  # Normalize angle to be within [0, 2π]
+    
+    if angle > np.pi:  # Shift to [-π, π] if necessary
+        angle -= 2.0 * np.pi
+    elif angle<-np.pi:
+        angle+= 2*np.pi    
+    return angle
+
 # Define a function to get the closest point on a line to another point
 # returns two values: the closest point and boolean whether that point is within the line or outside of it 
 def get_closest_to_point(line, point):
@@ -53,11 +62,11 @@ class BehavioralPlanner:
 
         # Get external parameters from ROS parameter server
         pose_topic_name = rospy.get_param("/behavioral_planner/pose_topic_name", "/odometry")
-        object_topic_name = rospy.get_param("/behavioral_planner/object_topic_name", "/odometry")
-        global_plan_topic_name = rospy.get_param("/behavioral_planner/global_plan_topic_name", "/odometry")
+        object_topic_name = rospy.get_param("/behavioral_planner/object_topic_name", "/objects")
+        global_plan_topic_name = rospy.get_param("/behavioral_planner/global_plan_topic_name", "/global_plan")
         update_rate = rospy.get_param("/behavioral_planner/update_rate", 10.0)
-        wp_proximity_up_threshold = rospy.get_param("/behavioral_planner/self.wp_proximity_up_threshold", 20.0)
-        wp_proximity_lw_threshold = rospy.get_param("/behavioral_planner/self.wp_proximity_lw_threshold", 5.0)
+        wp_proximity_up_threshold = rospy.get_param("/behavioral_planner/wp_proximity_up_threshold", 20.0)
+        wp_proximity_lw_threshold = rospy.get_param("/behavioral_planner/wp_proximity_lw_threshold", 5.0)
         velocity_threshold = rospy.get_param("/behavioral_planner/velocity_threshold", 0.1)
         stop_sign_time_threshold = rospy.get_param("/behavioral_planner/stop_sign_time_threshold", 5.0)
         yield_sign_time_threshold = rospy.get_param("/behavioral_planner/yield_sign_time_threshold", 2.0)
@@ -66,6 +75,7 @@ class BehavioralPlanner:
         self.rate = rospy.Rate(update_rate)  # 10 Hz
         self.current_state = State.STOP  # Initialize the state to STOP
         self.current_position = np.zeros((2, ))
+        self.current_heading = 0.0
         self.current_velocity = 0.0
         self.velocity_threshold = velocity_threshold
         self.stop_start_time = None  # Initialize stop state start time
@@ -146,9 +156,11 @@ class BehavioralPlanner:
         
         waypoint = self.global_plan[self.waypoint_index]
         dist_to_waypoint = euclidean_distance(self.current_position, waypoint)
+        angle_to_waypoint = np.abs(normalize_angle(self.current_heading - calculate_bearing(self.current_position, waypoint)))
 
         # Move to next waypoint if distance is less than the set lower threshold
-        if (dist_to_waypoint < self.wp_proximity_lw_threshold) and (self.waypoint_index != (self.global_plan.shape[0] - 1)):
+        if (self.waypoint_index != (self.global_plan.shape[0] - 1)) and ((angle_to_waypoint > np.pi/2) or \
+            ((dist_to_waypoint < self.wp_proximity_lw_threshold))):
             self.waypoint_index += 1
             waypoint = self.global_plan[self.waypoint_index]
             dist_to_waypoint = euclidean_distance(self.current_position, waypoint)
@@ -167,8 +179,8 @@ class BehavioralPlanner:
 
         # Publish waypoint message if a new waypoint is available
         if not np.array_equal(self.waypoint_old, midpoint):
-            waypoint_msg.pose.position.x = midpoint[0] # Change in xy since simulator heading is set incorrectly
-            waypoint_msg.pose.position.y = midpoint[1]
+            waypoint_msg.pose.position.x = midpoint[1] # Change in xy since simulator heading is set incorrectly
+            waypoint_msg.pose.position.y = -midpoint[0]
             waypoint_msg.stop_at_waypoint = True if np.array_equal(midpoint, self.global_plan[-1]) else False 
             
             if self.waypoint_index == (self.global_plan.shape[0] - 1):
@@ -177,7 +189,9 @@ class BehavioralPlanner:
                 next_heading = calculate_bearing(midpoint, self.global_plan[self.waypoint_index + 1])
             else:
                 next_heading = calculate_bearing(midpoint, self.global_plan[self.waypoint_index])
-            
+            next_heading = normalize_angle(next_heading - np.pi/2) 
+
+            # print(np.rad2deg(next_heading))
             quaternion = quaternion_from_euler(0, 0, next_heading)
             waypoint_msg.pose.orientation.x = quaternion[0]
             waypoint_msg.pose.orientation.y = quaternion[1]
@@ -216,7 +230,17 @@ class BehavioralPlanner:
         # Update current position and velocity
         self.current_position = np.array([msg.pose.pose.position.x, msg.pose.pose.position.y])    
         self.current_velocity = np.sqrt((msg.twist.twist.linear.x)**2 + (msg.twist.twist.linear.y)**2)
+        
+        orientation = msg.pose.pose.orientation
+
+        # Convert quaternion to Euler angles
+        quaternion = [orientation.x, orientation.y, orientation.z, orientation.w]
+        _, _, yaw = euler_from_quaternion(quaternion)
+        
+        # Yaw wrt x-axis
+        self.current_heading = normalize_angle(yaw + np.pi/2) 
         self.simulation_running = True
+
 
 
 

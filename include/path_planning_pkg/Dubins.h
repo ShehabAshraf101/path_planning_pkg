@@ -5,6 +5,7 @@
 #include <array>
 #include <vector>
 #include <string>
+#include <utility>
 #include "common.h"
 
 namespace planning
@@ -29,7 +30,7 @@ namespace planning
         T get_shortest_path_length(const Vector3D<T>& start, const Vector3D<T>& goal);
         T get_shortest_path_length(const Vector3D<T>& start, const Vector3D<T>& goal, Vector2D<T>& center_s_r, 
                 Vector2D<T>& center_s_l, Vector2D<T>& center_g_r, Vector2D<T>& center_g_l);
-        T get_shortest_path(const Vector3D<T>& start, const Vector3D<T>& goal, 
+        std::pair<T, bool> get_shortest_path(const Vector3D<T>& start, const Vector3D<T>& goal, 
                 std::vector<Vector3D<T>>& path, std::vector<T>& path_curvature);
         std::string get_path_type() const;
 

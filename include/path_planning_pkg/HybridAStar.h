@@ -45,6 +45,7 @@ namespace planning
         void update_obstacles();
         void reset();
         void update_goal(const Vector3D<T>& goal, const Vector3D<T>& start);
+        const std::vector<std::vector<T>>& get_obstacles() const;
         std::pair<T, bool> find_path(const T vel_init, const Vector3D<T>& start, 
                 std::vector<Vector3D<T>>& path, std::vector<T>& curvature);
         
@@ -63,6 +64,7 @@ namespace planning
         std::vector<T> _dubins_abs_curvatures;                      // Stores the absolute curvature the dubins path
         std::vector<Vector3D<T>> _dubins_path;                      // Stores the dubins path  
         Node3D<T> _goal_node;                                       // Stores a copy of the goal node to be reached
+        Node3D<T> _terminal_node;                                   // Stores a copy of the last node reached before terminating Hybrid A*
         Grid3D<T> _grid;                                            // 3D grid representing the search space
         AStar<T> _astar;                                            // Calculates shortest holonomic path with obstacles using A*
         Dubins<T> _dubins;                                          // Calculates and generates shortest non-holonomic obstacle 

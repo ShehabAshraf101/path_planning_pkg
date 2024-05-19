@@ -115,7 +115,7 @@ LocalPlannerBase<T>::LocalPlannerBase(ros::NodeHandle& nh)
     std::copy(curvature_weights.begin(), curvature_weights.end(), std::ostream_iterator<T>(ss, " "));
     ss << std::endl;
     ROS_INFO_STREAM(ss.str());
-
+    
     ROS_INFO("dubins_shot_interval = %d", dubins_shot_interval);
     ROS_INFO("dubins_shot_interval_decay = %d", dubins_shot_interval_decay);
 
@@ -124,11 +124,12 @@ LocalPlannerBase<T>::LocalPlannerBase(ros::NodeHandle& nh)
     apf_active_angle *= deg_to_rad;
     std::transform(steering.begin(), steering.end(), steering.begin(), 
             [deg_to_rad] (T angle) -> T { return angle * deg_to_rad; });
-
+    
     // Initialize class members (Non-ROS)
     _vehicle_length_2 = vehicle_length/2;
     _vehicle_width_2 = vehicle_width/2;
     _velocity = 0;
+    _waypoint_received = false;
     _pose = {0, 0, 0};
     _waypoint_pair.first = {0, 0, 0};
     _waypoint_pair.second = false;
@@ -138,6 +139,7 @@ LocalPlannerBase<T>::LocalPlannerBase(ros::NodeHandle& nh)
             apf_rep_constant, apf_active_angle, num_angle_bins, num_actions, steering, curvature_weights);
     _velocity_generator = std::make_unique<VelocityGenerator<T>>(max_velocity, coast_velocity, 
             max_lat_acc, max_long_acc, max_long_dec);
+    _hybrid_astar->update_goal(Vector3D<T>(0, 0, 0), Vector3D<T>(0, 0, 0));
 
     // Initialize ROS publishers and subscribers
     _odom_sub       = nh.subscribe(odom_topic_name, 0, &LocalPlannerBase::callback_odom, this);
@@ -151,7 +153,9 @@ template <typename T>
 void LocalPlannerBase<T>::callback_odom(const nav_msgs::Odometry::ConstPtr &msg)
 {
     // store pose2D and velocity
-    _pose = pose_to_vector3d<T>(msg->pose.pose);
+    Vector3D<T> pose = pose_to_vector3d<T>(msg->pose.pose);
+    _pose = {pose._y, -pose._x, pose._heading};
+    // std::cout << _pose._x << ", " << _pose._y << ", " << _pose._heading << "\n";   
     _velocity = std::hypot(msg->twist.twist.linear.x, msg->twist.twist.linear.y);
 }
 
@@ -161,10 +165,15 @@ void LocalPlannerBase<T>::callback_waypoint(const path_planning_pkg::Waypoint::C
     // store waypoint and boolean flag pair (true = stop at waypoint)
     _waypoint_pair.first = pose_to_vector3d<T>(msg->pose);
     _waypoint_pair.second = msg->stop_at_waypoint;
+    // std::cout << _waypoint_pair.first._x << ", " << _waypoint_pair.first._y 
+    //         << ", " << _waypoint_pair.first._heading << "\n";   
 
     // update goal for hybrid A* and reset the algorithm's map
     _hybrid_astar->reset();
     _hybrid_astar->update_goal(_waypoint_pair.first, _pose);
+
+    // signify that at least a single waypoint has been received
+    _waypoint_received = true;
 }
 
 // add callback for object detector when msg is available
@@ -196,31 +205,43 @@ void LocalPlanner<float>::callback_lane(const std_msgs::Float32MultiArray::Const
         return;
     }
 
-    // copy lines from serialized vector into point pairs (x1, y1, x2, y2) for each line
-    std::size_t num_lines = msg->layout.dim[0].size;
-    std::vector<std::pair<Vector2D<float>, Vector2D<float>>> lines;
-    lines.reserve(num_lines);
-    for (std::size_t i = 0; i < num_lines; i++)
+    // update trajectory only if a waypoint is available
+    if (_waypoint_received)
     {
-        lines.emplace_back(std::piecewise_construct, 
-                std::forward_as_tuple(msg->data[4 * i], msg->data[4 * i + 1]),
-                std::forward_as_tuple(msg->data[4 * i + 2], msg->data[4 * i + 3]));
+        // copy lines from serialized vector into point pairs (x1, y1, x2, y2) for each line
+        std::size_t num_lines = msg->layout.dim[0].size;
+        std::vector<std::pair<Vector2D<float>, Vector2D<float>>> lines;
+        lines.reserve(num_lines);
+        for (std::size_t i = 0; i < num_lines; i++)
+        {
+            lines.emplace_back(std::piecewise_construct, 
+                    std::forward_as_tuple(msg->data[4 * i], msg->data[4 * i + 1]),
+                    std::forward_as_tuple(msg->data[4 * i + 2], msg->data[4 * i + 3]));
+        }
+
+        // update map and path
+        _hybrid_astar->update_obstacles(lines, std::vector<float>(num_lines, _confidence_lane), _vehicle_width_2);
+        _hybrid_astar->update_obstacles();
+        std::vector<float> curvature;
+        std::vector<Vector3D<float>> path;
+        std::pair<float, bool> result = _hybrid_astar->find_path(_velocity, _pose, path, curvature);
+        if (result.second)
+        {
+            // update velocity profile and publish trajectory
+            std::vector<float> velocity;
+            bool success = _velocity_generator->generate_velocity_profile(_velocity, path, curvature, 
+                    velocity, !result.second, _waypoint_pair.second);
+            publish_trajectory(path, velocity);  
+            if (!success)
+            {
+                ROS_INFO("Velocity Generator: Failed");
+            } 
+        }
+        else
+        {
+            ROS_INFO("Hybrid A*: Failed");
+        }
     }
-
-    // update map and path
-    _hybrid_astar->update_obstacles(lines, std::vector<float>(_confidence_lane), _vehicle_width_2);
-    _hybrid_astar->update_obstacles();
-    std::vector<float> curvature;
-    std::vector<Vector3D<float>> path;
-    std::pair<float, bool> result = _hybrid_astar->find_path(_velocity, _pose, path, curvature);
-    ROS_INFO("Hybrid A*: Success = %s, Cost = %.4f", (result.second == true) ? "True" : "False", result.first);
-
-    // update velocity profile and publish trajectory
-    std::vector<float> velocity;
-    bool success = _velocity_generator->generate_velocity_profile(_velocity, path, curvature, 
-            velocity, !result.second, _waypoint_pair.second);
-    ROS_INFO("Velocity Generator: Success = %s", (success == true) ? "True" : "False");
-    publish_trajectory(path, velocity);  
 }
 
 void LocalPlanner<float>::publish_trajectory(const std::vector<Vector3D<float>> &path, 
@@ -241,7 +262,7 @@ void LocalPlanner<float>::publish_trajectory(const std::vector<Vector3D<float>> 
     msg.layout.dim[1].stride = 4;
 
     // insert path and velocity into data vector
-    msg.data.resize(4 * path.size());
+    msg.data.reserve(4 * path.size());
     for (auto it = path.rbegin(); it != path.rend(); it++) { msg.data.push_back(it->_x); }
     for (auto it = path.rbegin(); it != path.rend(); it++) { msg.data.push_back(it->_y); }
     for (auto it = path.rbegin(); it != path.rend(); it++) { msg.data.push_back(it->_heading); }
@@ -278,31 +299,43 @@ void LocalPlanner<double>::callback_lane(const std_msgs::Float64MultiArray::Cons
         return;
     }
 
-    // copy lines from serialized vector into point pairs (x1, y1, x2, y2) for each line
-    std::size_t num_lines = msg->layout.dim[0].size;
-    std::vector<std::pair<Vector2D<double>, Vector2D<double>>> lines;
-    lines.reserve(num_lines);
-    for (std::size_t i = 0; i < num_lines; i++)
+    // update trajectory only if a waypoint is available
+    if (_waypoint_received)
     {
-        lines.emplace_back(std::piecewise_construct, 
-                std::forward_as_tuple(msg->data[4 * i], msg->data[4 * i + 1]),
-                std::forward_as_tuple(msg->data[4 * i + 2], msg->data[4 * i + 3]));
-    }
+        // copy lines from serialized vector into point pairs (x1, y1, x2, y2) for each line
+        std::size_t num_lines = msg->layout.dim[0].size;
+        std::vector<std::pair<Vector2D<double>, Vector2D<double>>> lines;
+        lines.reserve(num_lines);
+        for (std::size_t i = 0; i < num_lines; i++)
+        {
+            lines.emplace_back(std::piecewise_construct, 
+                    std::forward_as_tuple(msg->data[4 * i], msg->data[4 * i + 1]),
+                    std::forward_as_tuple(msg->data[4 * i + 2], msg->data[4 * i + 3]));
+        }
 
-    // update map and path
-    _hybrid_astar->update_obstacles(lines, std::vector<double>(_confidence_lane), _vehicle_width_2);
-    _hybrid_astar->update_obstacles();
-    std::vector<double> curvature;
-    std::vector<Vector3D<double>> path;
-    std::pair<double, bool> result = _hybrid_astar->find_path(_velocity, _pose, path, curvature);
-    ROS_INFO("Hybrid A*: Success = %s, Cost = %.4f", (result.second == true) ? "True" : "False", result.first);
-
-    // update velocity profile and publish trajectory
-    std::vector<double> velocity;
-    bool success = _velocity_generator->generate_velocity_profile(_velocity, path, curvature, 
-            velocity, !result.second, _waypoint_pair.second);
-    ROS_INFO("Velocity Generator: Success = %s", (success == true) ? "True" : "False");
-    publish_trajectory(path, velocity);  
+        // update map and path
+        _hybrid_astar->update_obstacles(lines, std::vector<double>(num_lines, _confidence_lane), _vehicle_width_2);
+        _hybrid_astar->update_obstacles();
+        std::vector<double> curvature;
+        std::vector<Vector3D<double>> path;
+        std::pair<double, bool> result = _hybrid_astar->find_path(_velocity, _pose, path, curvature);
+        if (result.second)
+        {
+            // update velocity profile and publish trajectory
+            std::vector<double> velocity;
+            bool success = _velocity_generator->generate_velocity_profile(_velocity, path, curvature, 
+                    velocity, !result.second, _waypoint_pair.second);
+            publish_trajectory(path, velocity);  
+            if (!success)
+            {
+                ROS_INFO("Velocity Generator: Failed");
+            } 
+        }
+        else
+        {
+            ROS_INFO("Hybrid A*: Failed");
+        }
+    }  
 }
 
 void LocalPlanner<double>::publish_trajectory(const std::vector<Vector3D<double>> &path, 
@@ -323,7 +356,7 @@ void LocalPlanner<double>::publish_trajectory(const std::vector<Vector3D<double>
     msg.layout.dim[1].stride = 4;
 
     // insert path and velocity into data vector
-    msg.data.resize(4 * path.size());
+    msg.data.reserve(4 * path.size());
     for (auto it = path.rbegin(); it != path.rend(); it++) { msg.data.push_back(it->_x); }
     for (auto it = path.rbegin(); it != path.rend(); it++) { msg.data.push_back(it->_y); }
     for (auto it = path.rbegin(); it != path.rend(); it++) { msg.data.push_back(it->_heading); }

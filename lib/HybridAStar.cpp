@@ -14,6 +14,7 @@ HybridAStar<T>::HybridAStar(int dubins_shot_interval, int dubins_shot_interval_d
         _dubins_shot_interval_decay(dubins_shot_interval_decay),
         _dubins_shot_successful(false),
         _goal_node(Node3D<T>()),
+        _terminal_node(Node3D<T>()),
         _grid(grid_resolution, obstacle_threshold, obstacle_prob_min, obstacle_prob_max, 
                 obstacle_prob_free, grid_size, grid_2d_allow_diag_moves, step_size, 
                 max_lat_acc, max_long_dec, wheelbase, rear_to_cg, apf_rep_constant, 
@@ -58,6 +59,12 @@ void HybridAStar<T>::update_goal(const Vector3D<T>& goal, const Vector3D<T>& sta
 }
 
 template <typename T>
+const std::vector<std::vector<T>>& HybridAStar<T>::get_obstacles() const
+{
+    return _astar.get_obstacles();
+}
+
+template <typename T>
 std::pair<T, bool> HybridAStar<T>::find_path(const T vel_init, const Vector3D<T>& start, 
         std::vector<Vector3D<T>>& path, std::vector<T>& curvature)
 {
@@ -68,6 +75,7 @@ std::pair<T, bool> HybridAStar<T>::find_path(const T vel_init, const Vector3D<T>
     Vector3D<T> goal_grid = _goal_node._pose2D;
 
     // find path using Hybrid A*
+    _terminal_node = _goal_node;
     std::pair<T, bool> cost_success_pair = hybrid_a_star_search(start_node);
 
     // reconstruct path from goal to start
@@ -84,7 +92,7 @@ std::pair<T, bool> HybridAStar<T>::hybrid_a_star_search(Node3D<T>& start_node)
     // Hybrid A* initialization
     int dubins_shot_counter = 0;
     int dubins_shot_current_interval = _dubins_shot_interval;
-    constexpr int dubins_shot_min_interval = 50;
+    constexpr int dubins_shot_min_interval = 200;
     bool dubins_shot_allowed = false;
     _dubins_shot_successful = false;
     _closed_set.clear();
@@ -103,10 +111,10 @@ std::pair<T, bool> HybridAStar<T>::hybrid_a_star_search(Node3D<T>& start_node)
         // check if goal has been reached
         if (*it_first == _goal_node)
         {
-            // copy goal node for path reconstruction
-            _goal_node = *it_first;
+            // copy actual goal node for path reconstruction
+            _terminal_node = *it_first;
 
-            return std::pair<T, bool>(_goal_node._cost_g, true);
+            return std::pair<T, bool>(_terminal_node._cost_g, true);
         }
         // check if a dubins shot should be attempted
         else if (dubins_shot_allowed)
@@ -115,19 +123,20 @@ std::pair<T, bool> HybridAStar<T>::hybrid_a_star_search(Node3D<T>& start_node)
 
             if (dubins_shot_counter == dubins_shot_current_interval)
             {
-                T path_length = _dubins.get_shortest_path(it_first->_pose2D, _goal_node._pose2D, 
-                    _dubins_path, _dubins_abs_curvatures);
+                std::pair<T, bool> path_info = _dubins.get_shortest_path(it_first->_pose2D, _goal_node._pose2D, 
+                        _dubins_path, _dubins_abs_curvatures);
                 
-                // if successful then modify "goal_node" to be last node before dubins
+                // if successful then modify terminal node to be last node before dubins
                 // shot and terminate search
-                if (_grid.check_path(_dubins_path))
+                // boolean flag returned says whether the path initially includes a turn greater than 90 degs or not
+                if ((!path_info.second) && _grid.check_path(_dubins_path))
                 {
-                    _goal_node = *(it_first->_prev);
+                    _terminal_node = *(it_first->_prev);
                     _dubins_shot_successful = true;
 
-                    std::cout << "Dubins shot successful \n"; 
+                    // std::cout << "Dubins shot successful \n"; 
 
-                    return std::pair<T, bool>(it_first->_cost_g + path_length, true);
+                    return std::pair<T, bool>(it_first->_cost_g + path_info.first, true);
                 }
                 // update dubins shot interval
                 else
@@ -136,7 +145,7 @@ std::pair<T, bool> HybridAStar<T>::hybrid_a_star_search(Node3D<T>& start_node)
                     dubins_shot_current_interval = std::max(dubins_shot_current_interval - 
                             _dubins_shot_interval_decay, dubins_shot_min_interval);
                     
-                    std::cout << "Dubins shot failed \n"; 
+                    // std::cout << "Dubins shot failed \n"; 
                 }
             }
         }
@@ -182,7 +191,7 @@ std::pair<T, bool> HybridAStar<T>::hybrid_a_star_search(Node3D<T>& start_node)
     }
 
     // find alternative goal and return false and max cost
-    choose_alternative_goal();
+    // choose_alternative_goal();
     return std::pair<T, bool>(std::numeric_limits<T>::max(), false);
 }
 
@@ -204,7 +213,7 @@ void HybridAStar<T>::reconstruct_path(const Vector3D<T>& goal, const Vector3D<T>
     {
         std::size_t dubins_path_size = _dubins_path.size();
         path.resize(dubins_path_size);
-        curvature.resize(dubins_path_size);
+        curvature.resize(dubins_path_size + 1);
 
         for (std::size_t i = 0; i < dubins_path_size; i++)
         {
@@ -220,13 +229,13 @@ void HybridAStar<T>::reconstruct_path(const Vector3D<T>& goal, const Vector3D<T>
             pose2D._x += goal._x;
             pose2D._y += goal._y;
             path[i] = pose2D;
-            curvature[i] = _dubins_abs_curvatures[path_index];
+            curvature[i + 1] = _dubins_abs_curvatures[path_index];
         }
     }
 
     // add the rest of the path
     const std::vector<T>& abs_curvatures = _grid.get_abs_curvatures();
-    const Node3D<T>* current_node_ptr = &_goal_node;
+    const Node3D<T>* current_node_ptr = &_terminal_node;
     while (current_node_ptr != nullptr)
     {   
         // get relative position to goal and rotate back to inertial frame
@@ -266,7 +275,7 @@ void HybridAStar<T>::choose_alternative_goal()
         }
     }
 
-    _goal_node = *it_best;
+    _terminal_node = *it_best;
 }
 
 // Explicit instantiation of supported types

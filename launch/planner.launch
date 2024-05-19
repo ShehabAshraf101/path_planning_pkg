@@ -33,7 +33,7 @@
     </include>
 
     <!-- Launch Local Planner Node -->
-    <!-- <include file="$(find path_planning_pkg)/launch/local_planner.launch" if="$(eval use_online_planner == true)" >
+    <include file="$(find path_planning_pkg)/launch/local_planner.launch" if="$(eval use_online_planner == true)" >
         <arg name="pose_topic_name" value="$(arg pose_topic_name)" />
         <arg name="object_topic_name" value="$(arg object_topic_name)" />
         <arg name="lane_topic_name" value="$(arg lane_topic_name)" />
@@ -42,6 +42,6 @@
         <arg name="vehicle_width" value="$(arg vehicle_width)" />
         <arg name="wheelbase" value="$(arg wheelbase)" />
         <arg name="rear_to_cg" value="$(arg rear_to_cg)" />
-    </include> -->
+    </include>
 
 </launch>

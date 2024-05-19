@@ -61,6 +61,7 @@ protected:
     T _confidence_object;                                       // Confidence in object map prediction (0 = certainly free, 0.5 = no knowledge, 1.0 = certainly occupied)
     T _confidence_lane;                                         // Confidence in lane map prediction (same exactly as above)
     T _apf_object_added_radius;                                 // Radius (m) to add to obstacles for calculating field intensity from the APF
+    bool _waypoint_received;                                    // Flag whether first waypoint has been received or not
     Vector3D<T> _pose;                                          // Latest estimate of the vehicle's pose (pose2D)
     std::pair<Vector3D<T>, bool> _waypoint_pair;                // Next waypoint (pose2D) and flag to decide if vehicle should stop at waypoint
     std::unique_ptr<HybridAStar<T>> _hybrid_astar;              // Path planner for kinematically feasbile obstacle-free paths using Hybrid A*

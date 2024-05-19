@@ -122,7 +122,7 @@ T Dubins<T>::get_shortest_path_length(const Vector3D<T>& start, const Vector3D<T
 }
 
 template <typename T>
-T Dubins<T>::get_shortest_path(const Vector3D<T>& start, const Vector3D<T>& goal, 
+std::pair<T, bool> Dubins<T>::get_shortest_path(const Vector3D<T>& start, const Vector3D<T>& goal, 
                             std::vector<Vector3D<T>>& path, std::vector<T>& path_curvature)
 {
     // determine shortest path and store center locations
@@ -149,7 +149,7 @@ T Dubins<T>::get_shortest_path(const Vector3D<T>& start, const Vector3D<T>& goal
         break;
     }
 
-    return path_length_min;
+    return std::pair<T, bool>(path_length_min, std::abs(_params[1]) > static_cast<T>(M_PI_2));
 }
 
 template <typename T>

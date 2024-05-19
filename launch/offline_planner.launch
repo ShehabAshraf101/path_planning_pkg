@@ -32,8 +32,8 @@
     <param name="path_length_straight" value="15.0"/>
     <param name="path_length_curve_x" value="15.0"/>
     <param name="path_radius" value="6.0"/> <!-- Circular or infinity -->
-    <param name="step_size" value="0.034906585"/>
-    <!-- <param name="step_size" value="0.2"/> -->
+    <!-- <param name="step_size" value="0.034906585"/> -->
+    <param name="step_size" value="0.2"/>
     <param name="rotate_ccw" value="false"/>
     <param name="lane_width" value="3.7"/>
     <param name="turn_left" value="true"/>
