@@ -78,8 +78,11 @@ std::pair<T, bool> HybridAStar<T>::find_path(const T vel_init, const Vector3D<T>
     _terminal_node = _goal_node;
     std::pair<T, bool> cost_success_pair = hybrid_a_star_search(start_node);
 
-    // reconstruct path from goal to start
-    reconstruct_path(_grid.get_goal_location(), goal_grid, path, curvature);
+    // reconstruct path from goal to start if successful
+    if (cost_success_pair.second)
+    {
+        reconstruct_path(_grid.get_goal_location(), goal_grid, path, curvature);
+    }
 
     return cost_success_pair;
 }

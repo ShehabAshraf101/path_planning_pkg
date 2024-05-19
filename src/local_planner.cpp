@@ -194,19 +194,24 @@ void LocalPlannerBase<T>::callback_objects(const perception_pkg::bounding_box_ar
     // loop over obstacles to copy their contents
     for (const auto& obstacle : msg->bbs_array)
     {
-        T obstacle_dim = std::max(obstacle.length, obstacle.width);
         
         // handle barriers and vehicles by enlarging size using the vehicle's length
         if ((obstacle.class_name == class_names[0]) || (obstacle.class_name == class_names[1]))
         {
-            obstacle_dim += _vehicle_length_2;
+            T obstacle_dim = std::max(obstacle.length, obstacle.width) + _vehicle_width_2;
             obstacles.emplace_back(obstacle.centroid.x, obstacle.centroid.y, obstacle_dim, obstacle_dim);
             confidence.emplace_back(static_cast<T>(0.5) + obstacle.confidence/2);
         }
+        // else if (obstacle.class_name != class_names[2])
+        // {
+        //     T obstacle_dim = std::min(obstacle.length, obstacle.width);
+        //     obstacles.emplace_back(obstacle.centroid.x, obstacle.centroid.y, obstacle_dim, obstacle_dim);
+        //     confidence.emplace_back(static_cast<T>(0.5) + obstacle.confidence/2);
+        // }
     }
 
     // update map using obstacles
-    // _hybrid_astar->update_obstacles(obstacles, std::vector<T>(obstacles.size(), _confidence_object), _apf_object_added_radius);
+    _hybrid_astar->update_obstacles(obstacles, confidence, _apf_object_added_radius);
 }
 
 /* Define class specialization of local planner for float datatype */

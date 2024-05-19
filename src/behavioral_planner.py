@@ -96,7 +96,7 @@ class BehavioralPlanner:
         self.final_waypoint = False
 
         # Publisher for waypoints
-        self.waypoint_pub = rospy.Publisher('/behavioral_planner/waypoint', Waypoint, queue_size=1, latch=True)
+        self.waypoint_pub = rospy.Publisher('/behavioral_planner/waypoint', Waypoint, queue_size=0, latch=True)
 
         # Odometry subscriber
         rospy.Subscriber(pose_topic_name, Odometry, self.odom_callback)
@@ -156,11 +156,12 @@ class BehavioralPlanner:
         
         waypoint = self.global_plan[self.waypoint_index]
         dist_to_waypoint = euclidean_distance(self.current_position, waypoint)
-        angle_to_waypoint = np.abs(normalize_angle(self.current_heading - calculate_bearing(self.current_position, waypoint)))
-
+        angle_to_waypoint = normalize_angle(calculate_bearing(self.current_position, waypoint))
+        angle_to_waypoint = np.abs(normalize_angle(self.current_heading - angle_to_waypoint))
+        
         # Move to next waypoint if distance is less than the set lower threshold
-        if (self.waypoint_index != (self.global_plan.shape[0] - 1)) and ((angle_to_waypoint > np.pi/2) or \
-            ((dist_to_waypoint < self.wp_proximity_lw_threshold))):
+        if (self.waypoint_index != (self.global_plan.shape[0] - 1)) and \
+            ((angle_to_waypoint > np.pi/2) or (dist_to_waypoint < self.wp_proximity_lw_threshold)):
             self.waypoint_index += 1
             waypoint = self.global_plan[self.waypoint_index]
             dist_to_waypoint = euclidean_distance(self.current_position, waypoint)
@@ -179,6 +180,7 @@ class BehavioralPlanner:
 
         # Publish waypoint message if a new waypoint is available
         if not np.array_equal(self.waypoint_old, midpoint):
+            print("Waypoint: ", midpoint)
             waypoint_msg.pose.position.x = midpoint[1] # Change in xy since simulator heading is set incorrectly
             waypoint_msg.pose.position.y = -midpoint[0]
             waypoint_msg.stop_at_waypoint = True if np.array_equal(midpoint, self.global_plan[-1]) else False 
