@@ -160,6 +160,15 @@ void LocalPlannerBase<T>::callback_odom(const nav_msgs::Odometry::ConstPtr &msg)
             pose._heading};
     // std::cout << _pose._x << ", " << _pose._y << ", " << _pose._heading << "\n";   
     _velocity = std::hypot(msg->twist.twist.linear.x, msg->twist.twist.linear.y);
+
+    // initialize previous path if no waypoints have been initialized yet
+    if (!_waypoint_received)
+    {
+        _path_prev.resize(1);
+        _curvature_prev.resize(1);
+        _path_prev[0] = _pose;
+        _curvature_prev[0] = static_cast<T>(0.0);
+    }
 }
 
 template <typename T>
@@ -168,8 +177,8 @@ void LocalPlannerBase<T>::callback_waypoint(const path_planning_pkg::Waypoint::C
     // store waypoint and boolean flag pair (true = stop at waypoint)
     _waypoint_pair.first = pose_to_vector3d<T>(msg->pose);
     _waypoint_pair.second = msg->stop_at_waypoint;
-    std::cout << _waypoint_pair.first._x << ", " << _waypoint_pair.first._y 
-            << ", " << _waypoint_pair.first._heading << "\n";   
+    // std::cout << _waypoint_pair.first._x << ", " << _waypoint_pair.first._y 
+    //         << ", " << _waypoint_pair.first._heading << "\n";   
 
     // update goal for hybrid A* and reset the algorithm's map
     _hybrid_astar->reset();
@@ -212,6 +221,19 @@ void LocalPlannerBase<T>::callback_objects(const perception_pkg::bounding_box_ar
 
     // update map using obstacles
     _hybrid_astar->update_obstacles(obstacles, confidence, _apf_object_added_radius);
+}
+
+// Protected member functions
+template <typename T>
+void LocalPlannerBase<T>::copy_path(const std::vector<Vector3D<T>>& path, const std::vector<T>& curvature)
+{
+    _path_prev.resize(path.size());
+    _curvature_prev.resize(curvature.size());
+    for (std::size_t i = 0; i < path.size(); i++)
+    {
+        _path_prev[i] = path[i];
+        _curvature_prev[i] = curvature[i];
+    }
 }
 
 /* Define class specialization of local planner for float datatype */
@@ -257,24 +279,32 @@ void LocalPlanner<float>::callback_lane(const std_msgs::Float32MultiArray::Const
         // update map and path
         _hybrid_astar->update_obstacles(lines, std::vector<float>(num_lines, _confidence_lane), _vehicle_width_2);
         _hybrid_astar->update_obstacles();
-        std::vector<float> curvature;
+        std::vector<float> curvature, velocity;
         std::vector<Vector3D<float>> path;
         std::pair<float, bool> result = _hybrid_astar->find_path(_velocity, _pose, path, curvature);
+
+        // update velocity profile and publish new trajectory
+        bool success;
         if (result.second)
         {
-            // update velocity profile and publish trajectory
-            std::vector<float> velocity;
-            bool success = _velocity_generator->generate_velocity_profile(_velocity, path, curvature, 
+            // update velocity profile using new path
+            success = _velocity_generator->generate_velocity_profile(_velocity, path, curvature, 
                     velocity, !result.second, _waypoint_pair.second);
-            publish_trajectory(path, velocity);  
-            if (!success)
-            {
-                ROS_INFO("Velocity Generator: Failed");
-            } 
+            publish_trajectory(path, velocity);
+            copy_path(path, curvature);
         }
         else
         {
+            // update velocity profile using old path and publish trajectory
+            success = _velocity_generator->generate_velocity_profile(_velocity, _path_prev, _curvature_prev, 
+                    velocity, !result.second, _waypoint_pair.second);
+            publish_trajectory(_path_prev, velocity);
             ROS_INFO("Hybrid A*: Failed");
+        }
+
+        if (!success)
+        {
+            ROS_INFO("Velocity Generator: Failed");
         }
     }
 }

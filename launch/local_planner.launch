@@ -11,10 +11,10 @@
   <arg name="grid_size" default="100" />
   <arg name="grid_allow_diag_moves" default="true" />
   <arg name="grid_resolution" default="0.3" />
-  <arg name="obstacle_threshold" default="0.75" />
+  <arg name="obstacle_threshold" default="0.6" />
   <arg name="obstacle_prob_min" default="0.05" />
   <arg name="obstacle_prob_max" default="0.95" />
-  <arg name="obstacle_prob_free" default="0.35" />
+  <arg name="obstacle_prob_free" default="0.45" />
 
   <!-- Input Arguments - Vehicle Parameters -->
   <arg name="vehicle_length" default="4.0" />

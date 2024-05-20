@@ -168,6 +168,27 @@ namespace planning
                     _heading / other._heading};
         }
 
+        Vector3D& operator=(const Vector3D<T>& other) 
+        {
+            if (this != &other) 
+            {
+                _x = other._x;
+                _y = other._y;
+                _heading = other._heading;
+            }
+            
+            return *this;
+        }
+
+        template <typename U>
+        Vector3D& operator=(const Vector3D<U>& other) 
+        {
+            _x = static_cast<T>(other._x);
+            _y = static_cast<T>(other._y);
+            _heading = static_cast<T>(other._heading);
+        
+            return *this;
+        }
     };   
 }
 
