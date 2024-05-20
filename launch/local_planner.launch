@@ -18,7 +18,7 @@
 
   <!-- Input Arguments - Vehicle Parameters -->
   <arg name="vehicle_length" default="4.0" />
-  <arg name="vehicle_width" default="2.5" />
+  <arg name="vehicle_width" default="2.0" />
   <arg name="wheelbase" default="2.269" />
   <arg name="rear_to_cg" default="1.135" />
   <arg name="max_velocity" default="3.0" />

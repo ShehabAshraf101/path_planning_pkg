@@ -153,7 +153,9 @@ void Grid2D<T>::update_obstacles(const std::vector<std::pair<Vector2D<T>, Vector
         
         // discretize line along its length
         T log_confidence = std::log(confidence[k]/(1.0 - confidence[k]));
-        while (prog_length <= 1.0)
+        constexpr std::size_t max_iterations = 100;
+        std::size_t iter_count = 0;
+        while (prog_length <= 1.0 && (iter_count < max_iterations))
         {
             // discretize line along its width
             T prog_width = 0;
@@ -185,6 +187,7 @@ void Grid2D<T>::update_obstacles(const std::vector<std::pair<Vector2D<T>, Vector
 
             // update progess along length
             prog_length += _resolution/line_length;
+            iter_count++;
         }
     }
 }

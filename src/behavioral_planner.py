@@ -40,6 +40,20 @@ def normalize_angle(angle):
         angle+= 2*np.pi    
     return angle
 
+def average_heading(angle1, angle2):
+    # Convert angles to Cartesian coordinates
+    x1, y1 = np.cos(angle1), np.sin(angle1)
+    x2, y2 = np.cos(angle2), np.sin(angle2)
+    
+    # Compute the weighted average of the Cartesian coordinates
+    avg_x = (x1 + x2) / 2
+    avg_y = (y1 + y2) / 2
+    
+    # Convert the average Cartesian coordinates back to an angle
+    avg_angle = np.arctan2(avg_y, avg_x)
+    
+    return avg_angle
+
 # Define a function to get the closest point on a line to another point
 # returns two values: the closest point and boolean whether that point is within the line or outside of it 
 def get_closest_to_point(line, point):
@@ -188,9 +202,11 @@ class BehavioralPlanner:
             if self.waypoint_index == (self.global_plan.shape[0] - 1):
                 next_heading = calculate_bearing(self.global_plan[self.waypoint_index - 1], self.global_plan[self.waypoint_index])
             elif np.array_equal(midpoint, self.global_plan[self.waypoint_index]):
-                next_heading = calculate_bearing(midpoint, self.global_plan[self.waypoint_index + 1])
+                heading_prev = calculate_bearing(prev_waypoint, midpoint)
+                next_heading = average_heading(calculate_bearing(midpoint, self.global_plan[self.waypoint_index + 1]), heading_prev)
             else:
-                next_heading = calculate_bearing(midpoint, self.global_plan[self.waypoint_index])
+                heading_prev = calculate_bearing(prev_waypoint, midpoint)
+                next_heading = average_heading(calculate_bearing(midpoint, self.global_plan[self.waypoint_index]), heading_prev)
             next_heading = normalize_angle(next_heading - np.pi/2) 
 
             # print(np.rad2deg(next_heading))
