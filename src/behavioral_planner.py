@@ -46,8 +46,8 @@ def average_heading(angle1, angle2):
     x2, y2 = np.cos(angle2), np.sin(angle2)
     
     # Compute the weighted average of the Cartesian coordinates
-    avg_x = (x1 + x2) / 2
-    avg_y = (y1 + y2) / 2
+    avg_x = (2 * x1 + x2) / 3
+    avg_y = (2 * y1 + y2) / 3
     
     # Convert the average Cartesian coordinates back to an angle
     avg_angle = np.arctan2(avg_y, avg_x)
@@ -194,7 +194,6 @@ class BehavioralPlanner:
 
         # Publish waypoint message if a new waypoint is available
         if not np.array_equal(self.waypoint_old, midpoint):
-            print("Waypoint: ", midpoint)
             waypoint_msg.pose.position.x = midpoint[1] # Change in xy since simulator heading is set incorrectly
             waypoint_msg.pose.position.y = -midpoint[0]
             waypoint_msg.stop_at_waypoint = True if np.array_equal(midpoint, self.global_plan[-1]) else False 
@@ -208,6 +207,7 @@ class BehavioralPlanner:
                 heading_prev = calculate_bearing(prev_waypoint, midpoint)
                 next_heading = average_heading(calculate_bearing(midpoint, self.global_plan[self.waypoint_index]), heading_prev)
             next_heading = normalize_angle(next_heading - np.pi/2) 
+            print(f"Waypoint: {midpoint}, Heading: {np.rad2deg(next_heading)}")
 
             # print(np.rad2deg(next_heading))
             quaternion = quaternion_from_euler(0, 0, next_heading)
