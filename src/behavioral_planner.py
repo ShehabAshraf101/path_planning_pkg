@@ -46,8 +46,8 @@ def average_heading(angle1, angle2):
     x2, y2 = np.cos(angle2), np.sin(angle2)
     
     # Compute the weighted average of the Cartesian coordinates
-    avg_x = (2 * x1 + x2) / 3
-    avg_y = (2 * y1 + y2) / 3
+    avg_x = (x1 + x2) / 2
+    avg_y = (y1 + y2) / 2
     
     # Convert the average Cartesian coordinates back to an angle
     avg_angle = np.arctan2(avg_y, avg_x)

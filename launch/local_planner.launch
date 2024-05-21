@@ -34,10 +34,10 @@
   <arg name="apf_rep_constant" default="1.0" />
   <arg name="apf_active_angle" default="180.0" />
   <arg name="confidence_object" default="0.7" />
-  <arg name="confidence_lane" default="0.55" />
-  <arg name="apf_object_added_radius" default="1.25" />
+  <arg name="confidence_lane" default="0.6" />
+  <arg name="apf_object_added_radius" default="1.5" />
   <arg name="steering" default="[-40.0, -20.0, 0.0, 20.0, 40.0]" /> <!-- In degrees -->
-  <arg name="curvature_weights" default="[0.5, 0.5, 0, 0.5, 0.5]" /> <!-- Must be same size as steering -->
+  <arg name="curvature_weights" default="[1.0, 0.5, 0, 0.5, 1.0]" /> <!-- Must be same size as steering -->
 
   <!-- Input Arguments - Dubins Paths Parameters -->
   <arg name="dubins_shot_interval" default="100" />

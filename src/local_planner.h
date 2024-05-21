@@ -69,8 +69,8 @@ protected:
     bool _waypoint_received;                                    // Flag whether first waypoint has been received or not
     Vector3D<T> _pose;                                          // Latest estimate of the vehicle's pose (pose2D)
     std::pair<Vector3D<T>, bool> _waypoint_pair;                // Next waypoint (pose2D) and flag to decide if vehicle should stop at waypoint
-    std::vector<float> _curvature_prev;                         // Stores the curvature of the last obstacle-free path found 
-    std::vector<Vector3D<float>> _path_prev;                    // Stores the last obstacle-free path found
+    std::vector<T> _curvature_prev;                         // Stores the curvature of the last obstacle-free path found 
+    std::vector<Vector3D<T>> _path_prev;                    // Stores the last obstacle-free path found
     std::unique_ptr<HybridAStar<T>> _hybrid_astar;              // Path planner for kinematically feasbile obstacle-free paths using Hybrid A*
     std::unique_ptr<VelocityGenerator<T>> _velocity_generator;  // Responsible for generating a velocity profile given a path and vehicle's limits
 

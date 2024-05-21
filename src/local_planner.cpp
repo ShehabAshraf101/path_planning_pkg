@@ -263,7 +263,7 @@ void LocalPlanner<float>::callback_lane(const std_msgs::Float32MultiArray::Const
     }
 
     // update trajectory only if a waypoint is available
-    if (_waypoint_received)
+    if (_waypoint_received && !(_waypoint_pair.second && _velocity < 0.1f)) 
     {
         // copy lines from serialized vector into point pairs (x1, y1, x2, y2) for each line
         std::size_t num_lines = msg->layout.dim[0].size;
@@ -381,26 +381,34 @@ void LocalPlanner<double>::callback_lane(const std_msgs::Float64MultiArray::Cons
         // update map and path
         _hybrid_astar->update_obstacles(lines, std::vector<double>(num_lines, _confidence_lane), _vehicle_width_2);
         _hybrid_astar->update_obstacles();
-        std::vector<double> curvature;
+        std::vector<double> curvature, velocity;
         std::vector<Vector3D<double>> path;
         std::pair<double, bool> result = _hybrid_astar->find_path(_velocity, _pose, path, curvature);
+
+        // update velocity profile and publish new trajectory
+        bool success;
         if (result.second)
         {
-            // update velocity profile and publish trajectory
-            std::vector<double> velocity;
-            bool success = _velocity_generator->generate_velocity_profile(_velocity, path, curvature, 
+            // update velocity profile using new path
+            success = _velocity_generator->generate_velocity_profile(_velocity, path, curvature, 
                     velocity, !result.second, _waypoint_pair.second);
-            publish_trajectory(path, velocity);  
-            if (!success)
-            {
-                ROS_INFO("Velocity Generator: Failed");
-            } 
+            publish_trajectory(path, velocity);
+            copy_path(path, curvature);
         }
         else
         {
+            // update velocity profile using old path and publish trajectory
+            success = _velocity_generator->generate_velocity_profile(_velocity, _path_prev, _curvature_prev, 
+                    velocity, !result.second, _waypoint_pair.second);
+            publish_trajectory(_path_prev, velocity);
             ROS_INFO("Hybrid A*: Failed");
         }
-    }  
+
+        if (!success)
+        {
+            ROS_INFO("Velocity Generator: Failed");
+        }
+    }
 }
 
 void LocalPlanner<double>::publish_trajectory(const std::vector<Vector3D<double>> &path, 
