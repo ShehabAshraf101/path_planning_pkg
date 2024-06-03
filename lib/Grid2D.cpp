@@ -148,14 +148,15 @@ void Grid2D<T>::update_obstacles(const std::vector<std::pair<Vector2D<T>, Vector
         Vector2D<T> end_point = (lines[k].second - _goal_location).get_rotated_vector(_grid_heading);
         Vector2D<T> delta(end_point._x - start_point._x, end_point._y - start_point._y);
         T line_length = std::hypot(delta._x, delta._y);
-        Vector2D<T> delta_normal = Vector2D<T>(-delta._y, delta._x)/line_length; 
+        Vector2D<T> delta_normal = Vector2D<T>(-delta._y, delta._x)/line_length;
+        delta = delta/line_length; 
         T prog_length = 0;
         
         // discretize line along its length
         T log_confidence = std::log(confidence[k]/(1.0 - confidence[k]));
         constexpr std::size_t max_iterations = 100;
         std::size_t iter_count = 0;
-        while (prog_length <= 1.0 && (iter_count < max_iterations))
+        while ((prog_length <= line_length) && (iter_count < max_iterations))
         {
             // discretize line along its width
             T prog_width = 0;
@@ -186,7 +187,7 @@ void Grid2D<T>::update_obstacles(const std::vector<std::pair<Vector2D<T>, Vector
             }
 
             // update progess along length
-            prog_length += _resolution/line_length;
+            prog_length += _resolution;
             iter_count++;
         }
     }

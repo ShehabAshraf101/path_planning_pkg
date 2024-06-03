@@ -170,7 +170,7 @@ class BehavioralPlanner:
         
         waypoint = self.global_plan[self.waypoint_index]
         dist_to_waypoint = euclidean_distance(self.current_position, waypoint)
-        angle_to_waypoint = normalize_angle(calculate_bearing(self.current_position, waypoint))
+        angle_to_waypoint = calculate_bearing(self.current_position, waypoint)
         angle_to_waypoint = np.abs(normalize_angle(self.current_heading - angle_to_waypoint))
         
         # Move to next waypoint if distance is less than the set lower threshold

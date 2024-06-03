@@ -158,7 +158,6 @@ void LocalPlannerBase<T>::callback_odom(const nav_msgs::Odometry::ConstPtr &msg)
     _pose = {pose._y, 
             -pose._x, 
             pose._heading};
-    // std::cout << _pose._x << ", " << _pose._y << ", " << _pose._heading << "\n";   
     _velocity = std::hypot(msg->twist.twist.linear.x, msg->twist.twist.linear.y);
 
     // initialize previous path if no waypoints have been initialized yet
@@ -176,13 +175,11 @@ void LocalPlannerBase<T>::callback_waypoint(const path_planning_pkg::Waypoint::C
 {
     // store waypoint and boolean flag pair (true = stop at waypoint)
     _waypoint_pair.first = pose_to_vector3d<T>(msg->pose);
-    _waypoint_pair.second = msg->stop_at_waypoint;
-    // std::cout << _waypoint_pair.first._x << ", " << _waypoint_pair.first._y 
-    //         << ", " << _waypoint_pair.first._heading << "\n";   
+    _waypoint_pair.second = msg->stop_at_waypoint;  
 
-    // update goal for hybrid A* and reset the algorithm's map
-    _hybrid_astar->reset();
+    // update goal and map (relocates obstacles) for hybrid A* and reset cached nodes of A*
     _hybrid_astar->update_goal(_waypoint_pair.first, _pose);
+    _hybrid_astar->reset();
 
     // signify that at least a single waypoint has been received
     _waypoint_received = true;
@@ -290,15 +287,24 @@ void LocalPlanner<float>::callback_lane(const std_msgs::Float32MultiArray::Const
             // update velocity profile using new path
             success = _velocity_generator->generate_velocity_profile(_velocity, path, curvature, 
                     velocity, !result.second, _waypoint_pair.second);
-            publish_trajectory(path, velocity);
-            copy_path(path, curvature);
+            if (success) 
+            {
+                publish_trajectory(path, velocity);
+            }
+            // copy_path(path, curvature);
+            _path_prev = std::move(path);
+            _curvature_prev = std::move(curvature);
         }
         else
         {
             // update velocity profile using old path and publish trajectory
             success = _velocity_generator->generate_velocity_profile(_velocity, _path_prev, _curvature_prev, 
                     velocity, !result.second, _waypoint_pair.second);
-            publish_trajectory(_path_prev, velocity);
+            if (success)
+            {
+                publish_trajectory(_path_prev, velocity);
+            }
+
             ROS_INFO("Hybrid A*: Failed");
         }
 
@@ -365,7 +371,7 @@ void LocalPlanner<double>::callback_lane(const std_msgs::Float64MultiArray::Cons
     }
 
     // update trajectory only if a waypoint is available
-    if (_waypoint_received)
+    if (_waypoint_received && !(_waypoint_pair.second && _velocity < 0.1))
     {
         // copy lines from serialized vector into point pairs (x1, y1, x2, y2) for each line
         std::size_t num_lines = msg->layout.dim[0].size;
@@ -393,7 +399,9 @@ void LocalPlanner<double>::callback_lane(const std_msgs::Float64MultiArray::Cons
             success = _velocity_generator->generate_velocity_profile(_velocity, path, curvature, 
                     velocity, !result.second, _waypoint_pair.second);
             publish_trajectory(path, velocity);
-            copy_path(path, curvature);
+            // copy_path(path, curvature);
+            _path_prev = std::move(path);
+            _curvature_prev = std::move(curvature);
         }
         else
         {

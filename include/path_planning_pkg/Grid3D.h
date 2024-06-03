@@ -36,6 +36,7 @@ namespace planning
 
     private:
         // Private member functions
+        void relocate_obstacles(const T grid_heading_prev, const Vector3D<T>& goal_location3D_prev);
         T get_field_intensity(const Node3D<T>& node) const;
 
         // Private class members

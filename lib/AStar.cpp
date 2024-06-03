@@ -55,7 +55,6 @@ void AStar<T>::update_obstacles()
 template <typename T>
 void AStar<T>::reset()
 {
-    _grid.clear_obstacles();
     int grid_size = _grid.get_grid_size();
     std::fill(_visted.begin(), _visted.end(), std::vector<bool>(grid_size, false)); 
 }

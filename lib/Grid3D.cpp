@@ -101,12 +101,19 @@ Vector3D<T> Grid3D<T>::get_goal_location() const
 template <typename T>
 Node3D<T> Grid3D<T>::update_goal_heading(const Vector3D<T>& goal, const Vector3D<T>& start)
 {
+    // store old goal location and grid heading for relocating obstacles
+    const T grid_heading_prev = this->_grid_heading;
+    const Vector3D<T> goal_location3D_prev = _goal_location3D;
+
     // update goal and grid heading for 2D grid
     Vector2D<T> goal_2D(goal._x, goal._y), start_2D(start._x, start._y);
     Grid2D<T>::update_goal_heading(goal_2D, start_2D);
     
-    // update 3D grid parameters and return copy of goal node
+    // update 3D goal location and relocate obstacles according to new goal location and grid heading
     _goal_location3D = goal;
+    relocate_obstacles(grid_heading_prev, goal_location3D_prev);
+
+    // return a copy of goal node for node comparison during search for path
     Vector3D<T> goal_pose(this->_grid_size_4_5 * this->_resolution, 
             this->_grid_size_2 * this->_resolution, 
             wrap_pi(goal._heading - this->_grid_heading));
@@ -133,7 +140,7 @@ Node3D<T> Grid3D<T>::set_start_node(const Vector3D<T>& start)
     int j = static_cast<int>(pose2D._y/this->_resolution);
 
     // check validity of start location
-    if((i > -1) && (i < this->_grid_size) && (j > -1) && (j < this->_grid_size))
+    if ((i > -1) && (i < this->_grid_size) && (j > -1) && (j < this->_grid_size))
     {
         // reset the node's cost and predeccesor and return a copy of it
         (this->_node_map[i][j]).soft_reset();
@@ -158,6 +165,42 @@ const std::vector<T>& Grid3D<T>::get_abs_curvatures() const
     return _model.get_abs_curvatures();
 }
 
+template <typename T>
+void Grid3D<T>::relocate_obstacles(const T grid_heading_prev, const Vector3D<T>& goal_location3D_prev)
+{
+    // rotate position vector of previous goal to align with new grid axes
+    Vector2D<T> goal_prev = Vector2D<T>(static_cast<T>(this->_grid_size_4_5), 
+            static_cast<T>(this->_grid_size_2)).get_rotated_vector(this->_grid_heading - grid_heading_prev);
+
+    // rotate the offset vector from the new goal to the old one to align with the new axes
+    Vector2D<T> goal_new_to_old = Vector2D<T>(goal_location3D_prev._x - this->_goal_location3D._x, 
+            goal_location3D_prev._y - this->_goal_location3D._y).get_rotated_vector(this->_grid_heading);
+
+    // Calculate the offset vector from the new origin to the old one
+    Vector2D<T> origin_new_to_old = Vector2D<T>(static_cast<T>(this->_grid_size_4_5), 
+            static_cast<T>(this->_grid_size_2)) + (goal_new_to_old/this->_resolution) - goal_prev;
+
+    // update the location of each obstacle if within the new grid's boundaries
+    std::vector<std::vector<T>> obstacle_map_new(this->_grid_size, std::vector<T>(this->_grid_size, static_cast<T>(0)));
+    for (int i = 0; i < this->_grid_size; i++)
+    {
+        for (int j = 0; j < this->_grid_size; j++)
+        {
+            Vector2D<T> location_new = Vector2D<T>(static_cast<T>(i), 
+                    static_cast<T>(j)).get_rotated_vector(this->_grid_heading - grid_heading_prev) + origin_new_to_old;
+            int i_new = static_cast<int>(std::round(location_new._x));
+            int j_new = static_cast<int>(std::round(location_new._y));
+
+            if (((i_new > -1) && (i_new < this->_grid_size) && (j_new > -1) && (j_new < this->_grid_size)))
+            {
+                obstacle_map_new[i_new][j_new] = this->_obstacle_map[i][j];
+            }
+        }
+    }
+
+    // move new obstacle map into member variable (changes ownership of vector without copying)
+    this->_obstacle_map = std::move(obstacle_map_new); 
+}
 
 template <typename T>
 T Grid3D<T>::get_field_intensity(const Node3D<T>& node) const

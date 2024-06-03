@@ -43,9 +43,13 @@ namespace planning
         T _x;    // X coordinate
         T _y;    // Y coordinate
 
-        // Constructors
+        // Constructors and destructor
         Vector2D() : _x(static_cast<T>(0)), _y(static_cast<T>(0)) {}
         Vector2D(T x, T y) : _x(x), _y(y) {}
+        Vector2D(const Vector2D<T>& other) : _x(other._x), _y(other._y) {}
+        template <typename U>
+        Vector2D(const Vector2D<U>& other) : _x(static_cast<T>(other._x)), _y(static_cast<T>(other._y)) {}
+        ~Vector2D() {}
 
         // Functions
         Vector2D<T> get_rotated_vector(const T angle) const
@@ -66,6 +70,26 @@ namespace planning
         }
 
         // Operator overloading
+        Vector2D& operator=(const Vector2D<T>& other) 
+        {
+            if (this != &other) 
+            {
+                _x = other._x;
+                _y = other._y;
+            }
+            
+            return *this;
+        }
+
+        template <typename U>
+        Vector2D& operator=(const Vector2D<U>& other) 
+        {
+            _x = static_cast<T>(other._x);
+            _y = static_cast<T>(other._y);
+
+            return *this;
+        }
+
         Vector2D<T> operator+(const Vector2D<T>& other) const
         {
             return {_x + other._x, 
@@ -125,9 +149,14 @@ namespace planning
         T _y;           // Y coordinate
         T _heading;     // Heading direction w.r.t. x-axis
  
-        // Constructors
+        // Constructors and destructor 
         Vector3D() : _x(static_cast<T>(0)), _y(static_cast<T>(0)), _heading(static_cast<T>(0)) {}
         Vector3D(T x, T y, T heading) : _x(x), _y(y), _heading(heading) {}
+        Vector3D(const Vector3D<T>& other) : _x(other._x), _y(other._y), _heading(other._heading) {}
+        template <typename U>
+        Vector3D(const Vector3D<U>& other) : _x(static_cast<T>(other._x)), _y(static_cast<T>(other._y)), 
+                _heading(static_cast<T>(other._heading)) {}
+        ~Vector3D() {}
 
         // Functions
         Vector3D<T> get_rotated_vector(const T angle) const
@@ -140,6 +169,28 @@ namespace planning
         }
 
         // Operator overloading
+        Vector3D& operator=(const Vector3D<T>& other) 
+        {
+            if (this != &other) 
+            {
+                _x = other._x;
+                _y = other._y;
+                _heading = other._heading;
+            }
+            
+            return *this;
+        }
+
+        template <typename U>
+        Vector3D& operator=(const Vector3D<U>& other) 
+        {
+            _x = static_cast<T>(other._x);
+            _y = static_cast<T>(other._y);
+            _heading = static_cast<T>(other._heading);
+        
+            return *this;
+        }
+
         Vector3D<T> operator+(const Vector3D<T>& other) const
         {
             return {_x + other._x, 
@@ -166,28 +217,6 @@ namespace planning
             return {_x / other._x,
                     _y / other._y,
                     _heading / other._heading};
-        }
-
-        Vector3D& operator=(const Vector3D<T>& other) 
-        {
-            if (this != &other) 
-            {
-                _x = other._x;
-                _y = other._y;
-                _heading = other._heading;
-            }
-            
-            return *this;
-        }
-
-        template <typename U>
-        Vector3D& operator=(const Vector3D<U>& other) 
-        {
-            _x = static_cast<T>(other._x);
-            _y = static_cast<T>(other._y);
-            _heading = static_cast<T>(other._heading);
-        
-            return *this;
         }
     };   
 }
