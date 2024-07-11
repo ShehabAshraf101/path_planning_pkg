@@ -16,7 +16,7 @@ LocalPlannerBase<T>::LocalPlannerBase(ros::NodeHandle& nh)
     T grid_resolution; 
     T obstacle_threshold, obstacle_prob_min, obstacle_prob_max, obstacle_prob_free;
 
-    // vehicle parameters
+    // vehicle and planner parameters
     T vehicle_length, vehicle_width, wheelbase, rear_to_cg;
     T max_velocity, coast_velocity;
     T max_lat_acc, max_long_acc, max_long_dec;
@@ -29,6 +29,10 @@ LocalPlannerBase<T>::LocalPlannerBase(ros::NodeHandle& nh)
 
     // Dubins paths parameters
     int dubins_shot_interval, dubins_shot_interval_decay;
+
+    // pedestrian handler parameters
+    T detection_arc_angle_deg, min_stop_dist, min_allowable_ttc;
+    T max_long_dec_ph, min_vel_ph;
 
     // Load in parameters from the ROS parameter server
     // topic names
@@ -45,7 +49,8 @@ LocalPlannerBase<T>::LocalPlannerBase(ros::NodeHandle& nh)
     nh.param("/local_planner/obstacle_prob_max", obstacle_prob_max, static_cast<T>(0.95));
     nh.param("/local_planner/obstacle_prob_free", obstacle_prob_free, static_cast<T>(0.4));
 
-    // vehicle parameters
+    // vehicle and planner parameters
+    nh.param("/local_planner/update_rate_hz", _update_rate_hz, static_cast<T>(5.0));
     nh.param("/local_planner/vehicle_length", vehicle_length, static_cast<T>(2.5));
     nh.param("/local_planner/vehicle_width", vehicle_width, static_cast<T>(1.2));
     nh.param("/local_planner/wheelbase", wheelbase, static_cast<T>(2.2));
@@ -72,6 +77,14 @@ LocalPlannerBase<T>::LocalPlannerBase(ros::NodeHandle& nh)
     nh.param("/local_planner/dubins_shot_interval", dubins_shot_interval, 250);
     nh.param("/local_planner/dubins_shot_interval_decay", dubins_shot_interval_decay, 20);
 
+    // pedestrian handler parameters
+    nh.param("/local_planner/detection_arc_angle_deg", detection_arc_angle_deg, static_cast<T>(90.0));
+    nh.param("/local_planner/min_stop_dist", min_stop_dist, static_cast<T>(1.0));
+    nh.param("/local_planner/min_allowable_ttc", min_allowable_ttc, static_cast<T>(5.0));
+    nh.param("/local_planner/max_long_dec_ph", max_long_dec_ph, static_cast<T>(1.0));
+    nh.param("/local_planner/min_vel_ph", min_vel_ph, static_cast<T>(0.5));
+
+
     // Report the values of all parameters
     ROS_INFO("Local Planner Parameters:");
 
@@ -87,6 +100,7 @@ LocalPlannerBase<T>::LocalPlannerBase(ros::NodeHandle& nh)
     ROS_INFO("obstacle_prob_max = %.4f", obstacle_prob_max);
     ROS_INFO("obstacle_prob_free = %.4f", obstacle_prob_free);
 
+    ROS_INFO("update_rate_hz = %.4f", _update_rate_hz);
     ROS_INFO("vehicle_length = %.4f", vehicle_length);
     ROS_INFO("vehicle_width = %.4f", vehicle_width);
     ROS_INFO("wheelbase = %.4f", wheelbase);
@@ -119,6 +133,12 @@ LocalPlannerBase<T>::LocalPlannerBase(ros::NodeHandle& nh)
     ROS_INFO("dubins_shot_interval = %d", dubins_shot_interval);
     ROS_INFO("dubins_shot_interval_decay = %d", dubins_shot_interval_decay);
 
+    ROS_INFO("detection_arc_angle_deg = %.4f", detection_arc_angle_deg);
+    ROS_INFO("min_stop_dist = %.4f", min_stop_dist);
+    ROS_INFO("min_allowable_ttc = %.4f", min_allowable_ttc);
+    ROS_INFO("max_long_dec_ph = %.4f", max_long_dec_ph);
+    ROS_INFO("min_vel_ph = %.4f", min_vel_ph);
+
     // Convert all angles from degrees to radians
     T deg_to_rad = M_PI/180.0;
     apf_active_angle *= deg_to_rad;
@@ -130,6 +150,7 @@ LocalPlannerBase<T>::LocalPlannerBase(ros::NodeHandle& nh)
     _vehicle_width_2 = vehicle_width/2;
     _vehicle_cg_to_front = rear_to_cg;
     _velocity = 0;
+    _max_velocity_curr = std::numeric_limits<T>::max();
     _waypoint_received = false;
     _pose = {0, 0, 0};
     _waypoint_pair.first = {0, 0, 0};
@@ -138,6 +159,8 @@ LocalPlannerBase<T>::LocalPlannerBase(ros::NodeHandle& nh)
             grid_resolution, obstacle_threshold, obstacle_prob_min, obstacle_prob_max, obstacle_prob_free,
             grid_size, grid_allow_diag_moves, step_size, max_lat_acc, max_long_dec, wheelbase, rear_to_cg, 
             apf_rep_constant, apf_active_angle, num_angle_bins, num_actions, steering, curvature_weights);
+    _pedestrian_handler = std::make_unique<PedestrianHandler<T>>(detection_arc_angle_deg * deg_to_rad, 
+            min_stop_dist, min_allowable_ttc, max_long_dec_ph, min_vel_ph);
     _velocity_generator = std::make_unique<VelocityGenerator<T>>(max_velocity, coast_velocity, 
             max_lat_acc, max_long_acc, max_long_dec);
     _hybrid_astar->update_goal(Vector3D<T>(0, 0, 0), Vector3D<T>(0, 0, 0));
@@ -192,7 +215,7 @@ void LocalPlannerBase<T>::callback_objects(const perception_pkg::bounding_box_ar
     const std::vector<std::string> class_names({"car", "plastic lane barrier", "person"});
 
     // initialize vectors to store the obstacles and their confidence values
-    std::vector<Obstacle<T>> obstacles;
+    std::vector<Obstacle<T>> obstacles, pedestrians;
     std::vector<T> confidence;
     obstacles.reserve(msg->bbs_array.size());
     confidence.reserve(msg->bbs_array.size());
@@ -208,29 +231,15 @@ void LocalPlannerBase<T>::callback_objects(const perception_pkg::bounding_box_ar
             obstacles.emplace_back(obstacle.centroid.x, obstacle.centroid.y, obstacle_dim, obstacle_dim);
             confidence.emplace_back(static_cast<T>(0.5) + obstacle.confidence/2);
         }
-        // else if (obstacle.class_name != class_names[2])
-        // {
-        //     T obstacle_dim = std::min(obstacle.length, obstacle.width);
-        //     obstacles.emplace_back(obstacle.centroid.x, obstacle.centroid.y, obstacle_dim, obstacle_dim);
-        //     confidence.emplace_back(static_cast<T>(0.5) + obstacle.confidence/2);
-        // }
+        else if (obstacle.class_name == class_names[2])
+        {
+            pedestrians.emplace_back(obstacle.centroid.x, obstacle.centroid.y, obstacle.length, obstacle.width);
+        }
     }
 
-    // update map using obstacles
+    // update map using obstacles and calculate max velocity based on pedestrians
     _hybrid_astar->update_obstacles(obstacles, confidence, _apf_object_added_radius);
-}
-
-// Protected member functions
-template <typename T>
-void LocalPlannerBase<T>::copy_path(const std::vector<Vector3D<T>>& path, const std::vector<T>& curvature)
-{
-    _path_prev.resize(path.size());
-    _curvature_prev.resize(curvature.size());
-    for (std::size_t i = 0; i < path.size(); i++)
-    {
-        _path_prev[i] = path[i];
-        _curvature_prev[i] = curvature[i];
-    }
+    _max_velocity_curr = _pedestrian_handler->calc_max_velocity(_velocity, _pose, pedestrians);
 }
 
 /* Define class specialization of local planner for float datatype */
@@ -259,8 +268,8 @@ void LocalPlanner<float>::callback_lane(const std_msgs::Float32MultiArray::Const
         return;
     }
 
-    // update trajectory only if a waypoint is available
-    if (_waypoint_received && !(_waypoint_pair.second && _velocity < 0.1f)) 
+    // update map only if a waypoint is available
+    if (_waypoint_received) 
     {
         // copy lines from serialized vector into point pairs (x1, y1, x2, y2) for each line
         std::size_t num_lines = msg->layout.dim[0].size;
@@ -276,6 +285,31 @@ void LocalPlanner<float>::callback_lane(const std_msgs::Float32MultiArray::Const
         // update map and path
         _hybrid_astar->update_obstacles(lines, std::vector<float>(num_lines, _confidence_lane), _vehicle_width_2);
         _hybrid_astar->update_obstacles();
+    }
+}
+
+// blocking function which does not return till node is stopped
+void LocalPlanner<float>::run()
+{
+    ros::Rate loop_rate(_update_rate_hz);
+
+    while(ros::ok())
+    {
+        ros::spinOnce();
+        if (_waypoint_received)
+        {
+            update_trajectory();
+        }
+        loop_rate.sleep();
+    }
+}
+
+
+// Private member functions (type-specific implementations)
+void LocalPlanner<float>::update_trajectory()
+{
+    if (!(_waypoint_pair.second && (_velocity < 0.1f)))
+    {
         std::vector<float> curvature, velocity;
         std::vector<Vector3D<float>> path;
         std::pair<float, bool> result = _hybrid_astar->find_path(_velocity, _pose, path, curvature);
@@ -285,25 +319,18 @@ void LocalPlanner<float>::callback_lane(const std_msgs::Float32MultiArray::Const
         if (result.second)
         {
             // update velocity profile using new path
-            success = _velocity_generator->generate_velocity_profile(_velocity, path, curvature, 
-                    velocity, !result.second, _waypoint_pair.second);
-            if (success) 
-            {
-                publish_trajectory(path, velocity);
-            }
-            // copy_path(path, curvature);
+            success = _velocity_generator->generate_velocity_profile(_velocity, _max_velocity_curr, path, 
+                    curvature, velocity, !result.second, _waypoint_pair.second);
+            publish_trajectory(path, velocity);
             _path_prev = std::move(path);
             _curvature_prev = std::move(curvature);
         }
         else
         {
             // update velocity profile using old path and publish trajectory
-            success = _velocity_generator->generate_velocity_profile(_velocity, _path_prev, _curvature_prev, 
-                    velocity, !result.second, _waypoint_pair.second);
-            if (success)
-            {
-                publish_trajectory(_path_prev, velocity);
-            }
+            success = _velocity_generator->generate_velocity_profile(_velocity, _max_velocity_curr, _path_prev, 
+                    _curvature_prev, velocity, !result.second, _waypoint_pair.second);
+            publish_trajectory(_path_prev, velocity);
 
             ROS_INFO("Hybrid A*: Failed");
         }
@@ -370,8 +397,8 @@ void LocalPlanner<double>::callback_lane(const std_msgs::Float64MultiArray::Cons
         return;
     }
 
-    // update trajectory only if a waypoint is available
-    if (_waypoint_received && !(_waypoint_pair.second && _velocity < 0.1))
+    // update map only if a waypoint is available
+    if (_waypoint_received)
     {
         // copy lines from serialized vector into point pairs (x1, y1, x2, y2) for each line
         std::size_t num_lines = msg->layout.dim[0].size;
@@ -387,6 +414,30 @@ void LocalPlanner<double>::callback_lane(const std_msgs::Float64MultiArray::Cons
         // update map and path
         _hybrid_astar->update_obstacles(lines, std::vector<double>(num_lines, _confidence_lane), _vehicle_width_2);
         _hybrid_astar->update_obstacles();
+    }
+}
+
+// blocking function which does not return till node is stopped
+void LocalPlanner<double>::run()
+{
+    ros::Rate loop_rate(_update_rate_hz);
+
+    while(ros::ok())
+    {
+        ros::spinOnce();
+        if (_waypoint_received)
+        {
+            update_trajectory();
+        }
+        loop_rate.sleep();
+    }
+}
+
+// Private member functions (type-specific implementations)
+void LocalPlanner<double>::update_trajectory()
+{
+    if (!(_waypoint_pair.second && (_velocity < 0.1f)))
+    {
         std::vector<double> curvature, velocity;
         std::vector<Vector3D<double>> path;
         std::pair<double, bool> result = _hybrid_astar->find_path(_velocity, _pose, path, curvature);
@@ -396,19 +447,19 @@ void LocalPlanner<double>::callback_lane(const std_msgs::Float64MultiArray::Cons
         if (result.second)
         {
             // update velocity profile using new path
-            success = _velocity_generator->generate_velocity_profile(_velocity, path, curvature, 
-                    velocity, !result.second, _waypoint_pair.second);
+            success = _velocity_generator->generate_velocity_profile(_velocity, _max_velocity_curr, path, 
+                    curvature, velocity, !result.second, _waypoint_pair.second);
             publish_trajectory(path, velocity);
-            // copy_path(path, curvature);
             _path_prev = std::move(path);
             _curvature_prev = std::move(curvature);
         }
         else
         {
             // update velocity profile using old path and publish trajectory
-            success = _velocity_generator->generate_velocity_profile(_velocity, _path_prev, _curvature_prev, 
-                    velocity, !result.second, _waypoint_pair.second);
+            success = _velocity_generator->generate_velocity_profile(_velocity, _max_velocity_curr, _path_prev,
+                     _curvature_prev, velocity, !result.second, _waypoint_pair.second);
             publish_trajectory(_path_prev, velocity);
+
             ROS_INFO("Hybrid A*: Failed");
         }
 
@@ -455,7 +506,7 @@ int main(int argc, char **argv)
     ros::NodeHandle nh;
 
     LocalPlanner<float> local_planner(nh);
-    ros::spin();
+    local_planner.run();
 
     return 0;
 }

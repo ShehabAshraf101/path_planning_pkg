@@ -9,6 +9,7 @@
 #include <numeric>
 #include "HybridAStar.h"
 #include "VelocityGenerator.h"
+#include "PedestrianHandler.h"
 #include "common.h"
 
 #include "ros/ros.h"
@@ -55,23 +56,23 @@ public:
     void callback_objects(const perception_pkg::bounding_box_array::ConstPtr &msg);
 
 protected:
-    // Protected member functions
-    void copy_path(const std::vector<Vector3D<T>>& path, const std::vector<T>& curvature);
-
     // Protected class members
+    T _update_rate_hz;                                          // Rate (Hz) at which the planned trajectory is updated
     T _vehicle_length_2;                                        // Vehicle's length/2 (m) + tolerance to add to dimensions of objects
     T _vehicle_width_2;                                         // Vehicle's width/2 (m) + tolerance to add to dimensions of lane lines
     T _vehicle_cg_to_front;                                     // The distance from the vehicle's CG to the center of its front axle 
     T _velocity;                                                // Latest estimate of the vehicle's velocity
+    T _max_velocity_curr;                                       // Maximum velocity calculated by pedestrian handler
     T _confidence_object;                                       // Confidence in object map prediction (0 = certainly free, 0.5 = no knowledge, 1.0 = certainly occupied)
     T _confidence_lane;                                         // Confidence in lane map prediction (same exactly as above)
     T _apf_object_added_radius;                                 // Radius (m) to add to obstacles for calculating field intensity from the APF
     bool _waypoint_received;                                    // Flag whether first waypoint has been received or not
     Vector3D<T> _pose;                                          // Latest estimate of the vehicle's pose (pose2D)
     std::pair<Vector3D<T>, bool> _waypoint_pair;                // Next waypoint (pose2D) and flag to decide if vehicle should stop at waypoint
-    std::vector<T> _curvature_prev;                         // Stores the curvature of the last obstacle-free path found 
-    std::vector<Vector3D<T>> _path_prev;                    // Stores the last obstacle-free path found
+    std::vector<T> _curvature_prev;                             // Stores the curvature of the last obstacle-free path found 
+    std::vector<Vector3D<T>> _path_prev;                        // Stores the last obstacle-free path found
     std::unique_ptr<HybridAStar<T>> _hybrid_astar;              // Path planner for kinematically feasbile obstacle-free paths using Hybrid A*
+    std::unique_ptr<PedestrianHandler<T>> _pedestrian_handler;  // Module responsible for passing pedestrians safely
     std::unique_ptr<VelocityGenerator<T>> _velocity_generator;  // Responsible for generating a velocity profile given a path and vehicle's limits
 
     ros::Publisher _trajectory_pub;                             // ROS publisher of the trajectory msg as Float32 or Float64MultiArray
@@ -105,6 +106,11 @@ public:
 
     // Public member functions (type-specific implementations)
     void callback_lane(const std_msgs::Float32MultiArray::ConstPtr &msg);
+    void run();
+    
+private:
+    // Private member functions (type-specific implementations)
+    void update_trajectory();
     void publish_trajectory(const std::vector<Vector3D<float>> &path, const std::vector<float> &velocity) const;
 };
 
@@ -120,6 +126,11 @@ public:
 
     // Public member functions (type-specific implementations)
     void callback_lane(const std_msgs::Float64MultiArray::ConstPtr &msg);
+    void run();
+
+private:
+    // Private member functions (type-specific implementations)
+    void update_trajectory();
     void publish_trajectory(const std::vector<Vector3D<double>> &path, const std::vector<double> &velocity) const;
 };
 

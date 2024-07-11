@@ -126,8 +126,8 @@ class BehavioralPlanner:
         while not rospy.is_shutdown():
             while not self.simulation_running:
                 pass
-            self.execute_state()
-            self.update_state()
+            # self.execute_state()
+            # self.update_state()
             if self.global_plan is not None:
                 self.update_waypoint()
             self.rate.sleep()
@@ -164,61 +164,63 @@ class BehavioralPlanner:
 
     # Function to get and publish the next waypoint
     def update_waypoint(self):
-        # Create a Waypoint message
-        waypoint_msg = Waypoint()
-        waypoint_msg.Header.frame_id = "map"  # Assuming the coordinates are in the "map" frame
-        
-        waypoint = self.global_plan[self.waypoint_index]
-        dist_to_waypoint = euclidean_distance(self.current_position, waypoint)
-        angle_to_waypoint = calculate_bearing(self.current_position, waypoint)
-        angle_to_waypoint = np.abs(normalize_angle(self.current_heading - angle_to_waypoint))
-        
-        # Move to next waypoint if distance is less than the set lower threshold
-        if (self.waypoint_index != (self.global_plan.shape[0] - 1)) and \
-            ((angle_to_waypoint > np.pi/2) or (dist_to_waypoint < self.wp_proximity_lw_threshold)):
-            self.waypoint_index += 1
+        if self.waypoint_old[0] == np.inf or \
+        euclidean_distance(self.current_position, self.waypoint_old) < self.wp_proximity_lw_threshold:
+            
+            # Create a Waypoint message
+            waypoint_msg = Waypoint()
+            waypoint_msg.Header.frame_id = "map"  # Assuming the coordinates are in the "map" frame
+            
             waypoint = self.global_plan[self.waypoint_index]
             dist_to_waypoint = euclidean_distance(self.current_position, waypoint)
-        
-        # Find midpoint within thresholds if distance is greater than set higher threshold
-        midpoint = waypoint
-        dist_to_midpoint = dist_to_waypoint
-        prev_waypoint = self.global_plan[self.waypoint_index - 1] if self.waypoint_index != 0 else self.current_position
-        while dist_to_midpoint > self.wp_proximity_up_threshold:
-            midpoint = get_midpoint(prev_waypoint, waypoint)
-            dist_to_midpoint = euclidean_distance(self.current_position, midpoint)
-            if dist_to_midpoint < self.wp_proximity_lw_threshold:
-                prev_waypoint = midpoint
-            else:
-                waypoint = midpoint
-
-        # Publish waypoint message if a new waypoint is available
-        if not np.array_equal(self.waypoint_old, midpoint):
-            waypoint_msg.pose.position.x = midpoint[1] # Change in xy since simulator heading is set incorrectly
-            waypoint_msg.pose.position.y = -midpoint[0]
-            waypoint_msg.stop_at_waypoint = True if np.array_equal(midpoint, self.global_plan[-1]) else False 
+            angle_to_waypoint = calculate_bearing(self.current_position, waypoint)
+            angle_to_waypoint = np.abs(normalize_angle(self.current_heading - angle_to_waypoint))
             
-            if self.waypoint_index == (self.global_plan.shape[0] - 1):
-                next_heading = calculate_bearing(self.global_plan[self.waypoint_index - 1], self.global_plan[self.waypoint_index])
-            elif np.array_equal(midpoint, self.global_plan[self.waypoint_index]):
-                heading_prev = calculate_bearing(prev_waypoint, midpoint)
-                next_heading = average_heading(calculate_bearing(midpoint, self.global_plan[self.waypoint_index + 1]), heading_prev)
-            else:
-                heading_prev = calculate_bearing(prev_waypoint, midpoint)
-                next_heading = average_heading(calculate_bearing(midpoint, self.global_plan[self.waypoint_index]), heading_prev)
-            next_heading = normalize_angle(next_heading - np.pi/2) 
-            print(f"Waypoint: {midpoint}, Heading: {np.rad2deg(next_heading)}")
+            # Move to next waypoint if distance is less than the set lower threshold
+            if (self.waypoint_index != (self.global_plan.shape[0] - 1)) and \
+                ((angle_to_waypoint > np.pi/2) or (dist_to_waypoint < self.wp_proximity_lw_threshold)):
+                self.waypoint_index += 1
+                waypoint = self.global_plan[self.waypoint_index]
+                dist_to_waypoint = euclidean_distance(self.current_position, waypoint)
+            
+            # Find midpoint within thresholds if distance is greater than set higher threshold
+            midpoint = waypoint
+            dist_to_midpoint = dist_to_waypoint
+            prev_waypoint = self.waypoint_old if self.waypoint_old[0] != np.inf else self.current_position
+            while dist_to_midpoint > self.wp_proximity_up_threshold:
+                midpoint = get_midpoint(prev_waypoint, waypoint)
+                dist_to_midpoint = euclidean_distance(self.current_position, midpoint)
+                if dist_to_midpoint < self.wp_proximity_lw_threshold:
+                    prev_waypoint = midpoint
+                else:
+                    waypoint = midpoint
 
-            # print(np.rad2deg(next_heading))
-            quaternion = quaternion_from_euler(0, 0, next_heading)
-            waypoint_msg.pose.orientation.x = quaternion[0]
-            waypoint_msg.pose.orientation.y = quaternion[1]
-            waypoint_msg.pose.orientation.z = quaternion[2]
-            waypoint_msg.pose.orientation.w = quaternion[3]
+            # Publish waypoint message if a new waypoint is available
+            if not np.array_equal(self.waypoint_old, midpoint):
+                waypoint_msg.pose.position.x = midpoint[1] # Change in xy since simulator heading is set incorrectly
+                waypoint_msg.pose.position.y = -midpoint[0]
+                waypoint_msg.stop_at_waypoint = True if np.array_equal(midpoint, self.global_plan[-1]) else False 
+                self.waypoint_old = midpoint
+                
+                if self.waypoint_index == (self.global_plan.shape[0] - 1):
+                    next_heading = calculate_bearing(self.global_plan[self.waypoint_index - 1], self.global_plan[self.waypoint_index])
+                elif np.array_equal(midpoint, self.global_plan[self.waypoint_index]):
+                    heading_prev = calculate_bearing(prev_waypoint, midpoint)
+                    next_heading = average_heading(calculate_bearing(midpoint, self.global_plan[self.waypoint_index + 1]), heading_prev)
+                else:
+                    heading_prev = calculate_bearing(prev_waypoint, midpoint)
+                    next_heading = average_heading(calculate_bearing(midpoint, self.global_plan[self.waypoint_index]), heading_prev)
+                next_heading = normalize_angle(next_heading - np.pi/2) 
+                # print(f"Waypoint: {midpoint}, Heading: {np.rad2deg(next_heading)}")
 
-            self.waypoint_pub.publish(waypoint_msg)
-        
-        self.waypoint_old = midpoint
+                # print(np.rad2deg(next_heading))
+                quaternion = quaternion_from_euler(0, 0, next_heading)
+                waypoint_msg.pose.orientation.x = quaternion[0]
+                waypoint_msg.pose.orientation.y = quaternion[1]
+                waypoint_msg.pose.orientation.z = quaternion[2]
+                waypoint_msg.pose.orientation.w = quaternion[3]
+
+                self.waypoint_pub.publish(waypoint_msg)
 
 
     def object_detection_callback(self, msg):

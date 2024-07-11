@@ -8,40 +8,50 @@ from std_msgs.msg import Char, Float32MultiArray
 
 # Get external parameters from ROS parameter server
 pose_topic_name = rospy.get_param("/global_planner/pose_topic_name", "/odometry")
+map_type = rospy.get_param("/global_planner/map_type", "custom")
 
 
-""" Needs to remain stopped until a new waypoint is given using a flag
-the flag is to be used to print no feasible path only once """
-
-""" Define the points representing the grid:
-- First 16 points are the outside region 
-- Last 8 are the inside region """
-points = [
-    (-20.1, -20.5),
-    (-20.1, -2.1),
-    (-20.1, 2.2), 
-    (-20.1, 20.5),
-    (-17.0, 23.75),
-    (-2.1, 23.75),
-    (2.2, 23.75),
-    (17.0, 23.75),
-    (20.1, 20.5),
-    (20.1, 2.2),
-    (20.1, -2.1),
-    (20.1, -20.5),
-    (17.0, -23.75),
-    (2.1, -23.75),
-    (-2.2, -23.75),
-    (-17.0, -23.75),
-    
-    (-7.5, -2.1),
-    (-7.5, 2.2),
-    (-2.1, 8.5),
-    (2.2, 8.5),
-    (7.5, 2.2),
-    (7.5, -2.1),
-    (2.1, -8.5),
-    (-2.2, -8.5) ]
+""" Define the points representing the grid: """
+if map_type == "straight" or map_type == "lane_change":
+    points = [
+        (1.85, -95.0),
+        (1.85, 0.0),
+        (1.85, 95.0) ]
+elif map_type == "circular":
+    points = [
+        (0.0, 11.5),
+        (-11.5, 0.0),
+        (0.0, -11.5),
+        (11.5, 0.0) ]
+else:
+    """ - First 16 points are the outside region 
+    - Last 8 are the inside region """
+    points = [
+        (-20.1, -20.5),
+        (-20.1, -2.1),
+        (-20.1, 2.2), 
+        (-20.1, 20.5),
+        (-17.0, 23.75),
+        (-2.1, 23.75),
+        (2.2, 23.75),
+        (17.0, 23.75),
+        (20.1, 20.5),
+        (20.1, 2.2),
+        (20.1, -2.1),
+        (20.1, -20.5),
+        (17.0, -23.75),
+        (2.1, -23.75),
+        (-2.2, -23.75),
+        (-17.0, -23.75),
+        
+        (-7.5, -2.1),
+        (-7.5, 2.2),
+        (-2.1, 8.5),
+        (2.2, 8.5),
+        (7.5, 2.2),
+        (7.5, -2.1),
+        (2.1, -8.5),
+        (-2.2, -8.5) ]
 
 # Points Dictionary {char: point}
 keys = range(ord('A'), ord('A') + len(points))
@@ -55,30 +65,34 @@ for key, value in point_dict.items():
 
 """ Neighbors Dictionary {point: [neighboring points]} 
 Note: This node graph is directional i.e. nodes a and b can be neighbors while b and a are not """
-neighbors = {points[0]: [points[1]],
-             points[1]: [points[2], points[16]],
-             points[2]: [points[3]],
-             points[3]: [points[4]],
-             points[4]: [points[5]],
-             points[5]: [points[6], points[18]],
-             points[6]: [points[7]],
-             points[7]: [points[8]],
-             points[8]: [points[9]],
-             points[9]: [points[10], points[20]],
-             points[10]: [points[11]],
-             points[11]: [points[12]],
-             points[12]: [points[13]],
-             points[13]: [points[14], points[22]],
-             points[14]: [points[15]],
-             points[15]: [points[0]],
-             points[16]: [points[21], points[23]],
-             points[17]: [points[2], points[23]],
-             points[18]: [points[17], points[23]],
-             points[19]: [points[6], points[17]],
-             points[20]: [points[19], points[17]],
-             points[21]: [points[10], points[19]],
-             points[22]: [points[21], points[19]],
-             points[23]: [points[14], points[21]]}
+if map_type == "custom":
+    neighbors = {points[0]: [points[1]],
+                points[1]: [points[2], points[16]],
+                points[2]: [points[3]],
+                points[3]: [points[4]],
+                points[4]: [points[5]],
+                points[5]: [points[6], points[18]],
+                points[6]: [points[7]],
+                points[7]: [points[8]],
+                points[8]: [points[9]],
+                points[9]: [points[10], points[20]],
+                points[10]: [points[11]],
+                points[11]: [points[12]],
+                points[12]: [points[13]],
+                points[13]: [points[14], points[22]],
+                points[14]: [points[15]],
+                points[15]: [points[0]],
+                points[16]: [points[21], points[23]],
+                points[17]: [points[2], points[23]],
+                points[18]: [points[17], points[23]],
+                points[19]: [points[6], points[17]],
+                points[20]: [points[19], points[17]],
+                points[21]: [points[10], points[19]],
+                points[22]: [points[21], points[19]],
+                points[23]: [points[14], points[21]]}
+else:
+    neighbors = {points[i]: [points[i+1]] for i in range(len(points) - 1)}
+    neighbors[points[-1]] = [points[0]]
 
 # Define global variables for subscriber data
 current_position = np.array([0,0])
@@ -310,6 +324,12 @@ if __name__ == '__main__':
     # Initialize subscribers
     odom_sub = rospy.Subscriber(pose_topic_name, Odometry, odom_callback)
     goal_sub = rospy.Subscriber('/global_planner/set_goal', Char, goal_point_callback)
+
+    # If map type is not custom then automatically set the goal point
+    if map_type != "custom":
+        goal_pub = rospy.Publisher("/global_planner/set_goal", Char, queue_size=0, latch=True)
+        goal_msg = Char(data=ord(keys[-1]))
+        goal_pub.publish(goal_msg)
 
     # Spin forever
     rospy.spin()

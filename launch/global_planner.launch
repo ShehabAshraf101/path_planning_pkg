@@ -3,10 +3,12 @@
 <launch>
     <!-- Input Arguments -->
     <arg name="pose_topic_name" default="/odom" />
-    
+    <arg name="map_type" default="custom" /> <!-- "straight" or "lane_change" or "circular" or custom" -->
+
     <!-- Launch Node -->
     <node pkg="path_planning_pkg" type="global_planner.py" name="global_planner" output="screen">
         <param name="pose_topic_name" value="$(arg pose_topic_name)" />
+        <param name="map_type" value="$(arg map_type)" />
     </node>
 
 </launch>

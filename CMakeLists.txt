@@ -140,6 +140,7 @@ add_library(local_planner_lib STATIC
   lib/Node2D.cpp
   lib/Node3D.cpp
   lib/Obstacle.cpp
+  lib/PedestrianHandler.cpp 
   lib/VehicleModel.cpp
   lib/VelocityGenerator.cpp
 )
