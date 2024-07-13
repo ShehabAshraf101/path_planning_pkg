@@ -31,8 +31,8 @@ T PedestrianHandler<T>::calc_max_velocity(const T vel_curr,
         }
     }
 
-    // calculate a max velocity if min_ttc < min_allowable_ttc
-    if (min_ttc < _min_allowable_ttc)
+    // calculate a max velocity
+    if (min_ttc < std::numeric_limits<T>::max())
     {
         T rel_angle_min, long_dist_min;
         calc_rel_angle_and_long_dist(pose_curr, pedestrain_closest, rel_angle_min, long_dist_min);
@@ -44,9 +44,12 @@ T PedestrianHandler<T>::calc_max_velocity(const T vel_curr,
         }
 
         // return new max velocity based on min allowable ttc
-        return std::max(
-            (2 * long_dist_min + _max_long_dec * _min_allowable_ttc * _min_allowable_ttc)/
-            (2 * _min_allowable_ttc), _min_vel);
+        if (min_ttc < _min_allowable_ttc)
+        {
+            return std::max(
+                (2 * long_dist_min + _max_long_dec * _min_allowable_ttc * _min_allowable_ttc)/
+                (2 * _min_allowable_ttc), _min_vel);
+        }
     }
     
     return std::numeric_limits<T>::max();
