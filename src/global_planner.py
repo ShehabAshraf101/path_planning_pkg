@@ -15,13 +15,17 @@ map_type = rospy.get_param("/global_planner/map_type", "custom")
 if map_type == "straight" or map_type == "lane_change":
     points = [
         (1.85, -95.0),
-        (1.85, 0.0),
-        (1.85, 95.0) ]
+        (1.85, -47.5),
+        (1.85, 0.0) ]
 elif map_type == "circular":
     points = [
+        (8.131, 8.131),
         (0.0, 11.5),
+        (-8.131, 8.131),
         (-11.5, 0.0),
+        (-8.131, -8.131),
         (0.0, -11.5),
+        (8.131, -8.131),
         (11.5, 0.0) ]
 else:
     """ - First 16 points are the outside region 

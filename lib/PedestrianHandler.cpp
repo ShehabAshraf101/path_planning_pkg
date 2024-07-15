@@ -47,7 +47,7 @@ T PedestrianHandler<T>::calc_max_velocity(const T vel_curr,
         if (min_ttc < _min_allowable_ttc)
         {
             return std::max(
-                (2 * long_dist_min + _max_long_dec * _min_allowable_ttc * _min_allowable_ttc)/
+                (2 * long_dist_min - _max_long_dec * _min_allowable_ttc * _min_allowable_ttc)/
                 (2 * _min_allowable_ttc), _min_vel);
         }
     }

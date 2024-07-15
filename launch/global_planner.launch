@@ -3,7 +3,7 @@
 <launch>
     <!-- Input Arguments -->
     <arg name="pose_topic_name" default="/odom" />
-    <arg name="map_type" default="custom" /> <!-- "straight" or "lane_change" or "circular" or custom" -->
+    <arg name="map_type" default="lane_change" /> <!-- "straight" or "lane_change" or "circular" or custom" -->
 
     <!-- Launch Node -->
     <node pkg="path_planning_pkg" type="global_planner.py" name="global_planner" output="screen">

@@ -26,7 +26,7 @@
   <arg name="coast_velocity" default="1.0" />
   <arg name="max_lat_acc" default="2.0" />
   <arg name="max_long_acc" default="1.0" />
-  <arg name="max_long_dec" default="1.5" />
+  <arg name="max_long_dec" default="2.5" />
 
   <!-- Input Arguments - 3D Grid Parameters -->
   <arg name="num_angle_bins" default="72" />
@@ -45,10 +45,10 @@
   <arg name="dubins_shot_interval_decay" default="10" />
 
   <!-- Input Arguments - Pedestrian Handler Parameters -->
-  <arg name="detection_arc_angle_deg" default="100.0" />
-  <arg name="min_stop_dist" default="2.5" />
-  <arg name="min_allowable_ttc" default="6.0" />
-  <arg name="max_long_dec_ph" default="1.0" />
+  <arg name="detection_arc_angle_deg" default="170.0" /> 
+  <arg name="min_stop_dist" default="6.0" /> 
+  <arg name="min_allowable_ttc" default="3.4" /> 
+  <arg name="max_long_dec_ph" default="0.5" />
   <arg name="min_vel_ph" default="0.5" />
 
   <!-- Launch Local Planner -->
@@ -65,7 +65,7 @@
     <param name="obstacle_prob_min" value="$(arg obstacle_prob_min)" />
     <param name="obstacle_prob_max" value="$(arg obstacle_prob_max)" />
     <param name="obstacle_prob_free" value="$(arg obstacle_prob_free)" />
-
+6.000
     <param name="update_rate_hz" value="$(arg update_rate_hz)" />
     <param name="vehicle_length" value="$(arg vehicle_length)" />
     <param name="vehicle_width" value="$(arg vehicle_width)" />

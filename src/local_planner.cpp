@@ -240,6 +240,7 @@ void LocalPlannerBase<T>::callback_objects(const perception_pkg::bounding_box_ar
     // update map using obstacles and calculate max velocity based on pedestrians
     _hybrid_astar->update_obstacles(obstacles, confidence, _apf_object_added_radius);
     _max_velocity_curr = _pedestrian_handler->calc_max_velocity(_velocity, _pose, pedestrians);
+    // ROS_INFO("Max velocityL: %.4f", _max_velocity_curr);
 }
 
 /* Define class specialization of local planner for float datatype */
