@@ -95,7 +95,7 @@ std::pair<T, bool> HybridAStar<T>::hybrid_a_star_search(Node3D<T>& start_node)
     // Hybrid A* initialization
     int dubins_shot_counter = 0;
     int dubins_shot_current_interval = _dubins_shot_interval;
-    constexpr int dubins_shot_min_interval = 200;
+    constexpr int dubins_shot_min_interval = 50;
     bool dubins_shot_allowed = false;
     _dubins_shot_successful = false;
     _closed_set.clear();

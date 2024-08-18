@@ -76,7 +76,7 @@ bool VelocityGenerator<T>::generate_velocity_profile(const T vel_init, const T m
         velocity[i - 1] = std::sqrt(velocity_sqr[i - 1]);
     }
 
-    // calculate the velocity of endpoint and return true if vel_init < (v[0) + tolerance) --> (feasible motion)
+    // calculate the velocity of endpoint and return true if vel_init < (v[0] + tolerance) --> (feasible motion)
     velocity[path_size - 1] = std::sqrt(velocity_sqr[path_size - 1]);
     constexpr T velocity_tolerance = static_cast<T>(0.25);
     bool is_feasible = (vel_init < (velocity[0] + velocity_tolerance));

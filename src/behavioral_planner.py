@@ -86,7 +86,7 @@ class BehavioralPlanner:
         yield_sign_time_threshold = rospy.get_param("/behavioral_planner/yield_sign_time_threshold", 2.0)
 
         # Initialize clas members
-        self.rate = rospy.Rate(update_rate)  # 10 Hz
+        self.rate = rospy.Rate(update_rate) 
         self.current_state = State.STOP  # Initialize the state to STOP
         self.current_position = np.zeros((2, ))
         self.current_heading = 0.0

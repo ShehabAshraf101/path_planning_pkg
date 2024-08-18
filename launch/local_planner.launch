@@ -17,7 +17,7 @@
   <arg name="obstacle_prob_free" default="0.45" />
 
   <!-- Input Arguments - Vehicle and Planner Parameters -->
-  <arg name="update_rate_hz" default="5.0" />
+  <arg name="update_rate_hz" default="4.0" />
   <arg name="vehicle_length" default="4.0" />
   <arg name="vehicle_width" default="2.0" />
   <arg name="wheelbase" default="2.269" />
@@ -45,7 +45,7 @@
   <arg name="dubins_shot_interval_decay" default="10" />
 
   <!-- Input Arguments - Pedestrian Handler Parameters -->
-  <arg name="detection_arc_angle_deg" default="170.0" /> 
+  <arg name="detection_arc_angle_deg" default="160.0" /> 
   <arg name="min_stop_dist" default="6.0" /> 
   <arg name="min_allowable_ttc" default="3.4" /> 
   <arg name="max_long_dec_ph" default="0.5" />
@@ -65,7 +65,7 @@
     <param name="obstacle_prob_min" value="$(arg obstacle_prob_min)" />
     <param name="obstacle_prob_max" value="$(arg obstacle_prob_max)" />
     <param name="obstacle_prob_free" value="$(arg obstacle_prob_free)" />
-6.000
+
     <param name="update_rate_hz" value="$(arg update_rate_hz)" />
     <param name="vehicle_length" value="$(arg vehicle_length)" />
     <param name="vehicle_width" value="$(arg vehicle_width)" />
